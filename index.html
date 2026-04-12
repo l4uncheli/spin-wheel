@@ -20,8 +20,10 @@
       </div>
 
       <div class="result-card">
-        <p class="result-label">Результат</p>
-        <p id="resultText" class="result-text">Нажмите «Крутить» или выберите цель для подкрутки.</p>
+        <p id="secretTrigger" class="result-label" title="Секретный переключатель">
+          Результат
+        </p>
+        <p id="resultText" class="result-text">Нажмите «Крутить», чтобы запустить рулетку.</p>
       </div>
     </section>
 
@@ -30,9 +32,29 @@
         <p class="eyebrow">Локальный режим</p>
         <h1>Колесо фортуны</h1>
         <p class="panel-description">
-          Меняйте сектора справа, крутите случайно или мягко останавливайте колесо на нужном секторе.
+          У каждой вкладки свой набор секторов. Можно держать до трёх отдельных рулеток и переключаться между ними.
         </p>
       </div>
+
+      <section class="card">
+        <div class="card-title-row">
+          <h2>Вкладки рулетки</h2>
+          <button id="addTabButton" class="ghost-button" type="button">Новая вкладка</button>
+        </div>
+        <div id="tabList" class="tab-list" aria-label="Список вкладок"></div>
+
+        <label class="field-label" for="tabNameInput">Название активной вкладки</label>
+        <div class="tab-name-row">
+          <input
+            id="tabNameInput"
+            class="text-field"
+            type="text"
+            maxlength="24"
+            placeholder="Название вкладки"
+          />
+          <button id="removeTabButton" class="ghost-button" type="button">Удалить</button>
+        </div>
+      </section>
 
       <section class="card">
         <div class="card-title-row">
@@ -44,18 +66,51 @@
 
       <section class="card">
         <h2>Управление</h2>
-        <div class="action-group">
+        <div class="action-group action-group-single">
           <button id="spinButton" class="primary-button" type="button">Крутить</button>
-          <button id="rigButton" class="secondary-button" type="button">Подкрутить</button>
         </div>
-
-        <label class="field-label" for="rigSelect">Целевой сектор для подкрутки</label>
-        <select id="rigSelect" class="select-field"></select>
 
         <div class="hint-box">
-          <p>Обычное вращение выбирает результат случайно.</p>
-          <p>Подкрутка заранее задаёт победивший сектор, но анимация остаётся плавной и естественной.</p>
+          <p>Обычное вращение выглядит как случайное и работает сразу после двойного клика по `index.html`.</p>
+          <p>Скрытые настройки подкрутки спрятаны и не мешают обычному интерфейсу.</p>
         </div>
+      </section>
+
+      <section id="secretRigCard" class="card secret-card" hidden>
+        <div class="card-title-row">
+          <h2>Скрытая подкрутка</h2>
+          <span class="secret-badge">Секретно</span>
+        </div>
+
+        <label class="toggle-row">
+          <input id="hiddenRigEnabled" type="checkbox" />
+          <span>Включить скрытую подкрутку для кнопки «Крутить»</span>
+        </label>
+
+        <label class="field-label" for="hiddenRigTarget">Нужный сектор</label>
+        <select id="hiddenRigTarget" class="select-field"></select>
+
+        <div class="secret-grid">
+          <label>
+            <span class="field-label field-label-compact">Обороты</span>
+            <input id="hiddenRigSpins" class="text-field" type="number" min="4" max="20" step="1" />
+          </label>
+
+          <label>
+            <span class="field-label field-label-compact">Длительность, мс</span>
+            <input id="hiddenRigDuration" class="text-field" type="number" min="2000" max="12000" step="100" />
+          </label>
+        </div>
+
+        <label class="field-label" for="hiddenRigOffset">
+          Смещение внутри сектора
+        </label>
+        <input id="hiddenRigOffset" class="range-field" type="range" min="-35" max="35" step="1" />
+        <p id="hiddenRigOffsetValue" class="subtle-text">0%</p>
+
+        <p class="subtle-text">
+          Секретная панель открывается и закрывается по клику на надпись «Результат» 5 раз подряд.
+        </p>
       </section>
     </aside>
   </main>

@@ -2,11 +2,23 @@ const canvas = document.getElementById("wheelCanvas");
 const context = canvas.getContext("2d");
 
 const sectorList = document.getElementById("sectorList");
-const rigSelect = document.getElementById("rigSelect");
 const spinButton = document.getElementById("spinButton");
-const rigButton = document.getElementById("rigButton");
 const addSectorButton = document.getElementById("addSectorButton");
 const resultText = document.getElementById("resultText");
+const secretTrigger = document.getElementById("secretTrigger");
+
+const tabList = document.getElementById("tabList");
+const addTabButton = document.getElementById("addTabButton");
+const removeTabButton = document.getElementById("removeTabButton");
+const tabNameInput = document.getElementById("tabNameInput");
+
+const secretRigCard = document.getElementById("secretRigCard");
+const hiddenRigEnabled = document.getElementById("hiddenRigEnabled");
+const hiddenRigTarget = document.getElementById("hiddenRigTarget");
+const hiddenRigSpins = document.getElementById("hiddenRigSpins");
+const hiddenRigDuration = document.getElementById("hiddenRigDuration");
+const hiddenRigOffset = document.getElementById("hiddenRigOffset");
+const hiddenRigOffsetValue = document.getElementById("hiddenRigOffsetValue");
 
 const wheelColors = [
   "#E76F51",
@@ -21,20 +33,27 @@ const wheelColors = [
   "#FF8C42",
 ];
 
+const maxTabs = 3;
+
 const state = {
-  sectors: [
-    "Пицца",
-    "Кино",
-    "Прогулка",
-    "Кофе",
-    "Суши",
-    "Игры",
-    "Подарок",
-    "Выходной",
+  tabs: [
+    createTab("Рулетка 1", [
+      "Пицца",
+      "Кино",
+      "Прогулка",
+      "Кофе",
+      "Суши",
+      "Игры",
+      "Подарок",
+      "Выходной",
+    ]),
   ],
-  rotation: 0,
+  activeTabId: 1,
   spinning: false,
   animationFrameId: 0,
+  secretClickCount: 0,
+  secretTimerId: 0,
+  secretPanelVisible: false,
 };
 
 const wheelConfig = {
@@ -42,6 +61,24 @@ const wheelConfig = {
   center: canvas.width / 2,
   radius: canvas.width / 2 - 30,
 };
+
+function createTab(name, sectors) {
+  createTab.nextId = (createTab.nextId || 0) + 1;
+
+  return {
+    id: createTab.nextId,
+    name,
+    sectors: sectors.slice(),
+    rotation: 0,
+    rig: {
+      enabled: false,
+      targetIndex: 0,
+      extraSpins: 8,
+      duration: 5600,
+      offsetPercent: 0,
+    },
+  };
+}
 
 // Плавное замедление, чтобы колесо останавливалось естественно.
 function easeOutCubic(value) {
@@ -57,32 +94,86 @@ function getSectorColor(index) {
   return wheelColors[index % wheelColors.length];
 }
 
-function sanitizeSectors() {
-  const cleaned = state.sectors
+function getActiveTab() {
+  return state.tabs.find((tab) => tab.id === state.activeTabId) || state.tabs[0];
+}
+
+function sanitizeSectors(tab = getActiveTab()) {
+  const cleaned = tab.sectors
     .map((sector) => sector.trim())
     .filter((sector) => sector.length > 0);
 
-  state.sectors = cleaned.length > 0 ? cleaned : ["Новый сектор"];
+  tab.sectors = cleaned.length > 0 ? cleaned : ["Новый сектор"];
+
+  if (tab.rig.targetIndex >= tab.sectors.length) {
+    tab.rig.targetIndex = 0;
+  }
+}
+
+function clampRigValues(tab = getActiveTab()) {
+  tab.rig.extraSpins = Math.min(20, Math.max(4, Number(tab.rig.extraSpins) || 8));
+  tab.rig.duration = Math.min(12000, Math.max(2000, Number(tab.rig.duration) || 5600));
+  tab.rig.offsetPercent = Math.min(35, Math.max(-35, Number(tab.rig.offsetPercent) || 0));
 }
 
 function updateControlState() {
   const disabled = state.spinning;
 
   spinButton.disabled = disabled;
-  rigButton.disabled = disabled;
-  rigSelect.disabled = disabled;
   addSectorButton.disabled = disabled;
+  addTabButton.disabled = disabled || state.tabs.length >= maxTabs;
+  removeTabButton.disabled = disabled || state.tabs.length === 1;
+  tabNameInput.disabled = disabled;
+  hiddenRigEnabled.disabled = disabled;
+  hiddenRigTarget.disabled = disabled;
+  hiddenRigSpins.disabled = disabled;
+  hiddenRigDuration.disabled = disabled;
+  hiddenRigOffset.disabled = disabled;
 
   const inputs = sectorList.querySelectorAll("input, button");
   inputs.forEach((element) => {
     element.disabled = disabled;
   });
+
+  const tabButtons = tabList.querySelectorAll("button");
+  tabButtons.forEach((button) => {
+    button.disabled = disabled;
+  });
+}
+
+function renderTabs() {
+  tabList.innerHTML = "";
+
+  state.tabs.forEach((tab, index) => {
+    const button = document.createElement("button");
+    button.className = `tab-button${tab.id === state.activeTabId ? " active" : ""}`;
+    button.type = "button";
+    button.innerHTML = `
+      <span>${tab.name}</span>
+      <span class="tab-count">${tab.sectors.length} сект.</span>
+    `;
+
+    button.addEventListener("click", () => {
+      if (state.spinning) {
+        return;
+      }
+
+      state.activeTabId = tab.id;
+      renderAll();
+    });
+
+    button.title = `Открыть вкладку ${index + 1}`;
+    tabList.appendChild(button);
+  });
+
+  tabNameInput.value = getActiveTab().name;
 }
 
 function renderSectorList() {
+  const activeTab = getActiveTab();
   sectorList.innerHTML = "";
 
-  state.sectors.forEach((sector, index) => {
+  activeTab.sectors.forEach((sector, index) => {
     const item = document.createElement("div");
     item.className = "sector-item";
 
@@ -97,12 +188,13 @@ function renderSectorList() {
     input.value = sector;
     input.placeholder = `Сектор ${index + 1}`;
     input.addEventListener("input", (event) => {
-      state.sectors[index] = event.target.value;
-      syncRigSelect();
+      activeTab.sectors[index] = event.target.value;
+      syncHiddenRigFields();
       drawWheel();
+      renderTabs();
     });
     input.addEventListener("blur", () => {
-      sanitizeSectors();
+      sanitizeSectors(activeTab);
       renderAll();
     });
 
@@ -112,12 +204,13 @@ function renderSectorList() {
     removeButton.textContent = "×";
     removeButton.title = `Удалить сектор ${index + 1}`;
     removeButton.addEventListener("click", () => {
-      if (state.sectors.length === 1) {
-        state.sectors[0] = "Новый сектор";
+      if (activeTab.sectors.length === 1) {
+        activeTab.sectors[0] = "Новый сектор";
       } else {
-        state.sectors.splice(index, 1);
+        activeTab.sectors.splice(index, 1);
       }
 
+      sanitizeSectors(activeTab);
       renderAll();
     });
 
@@ -126,38 +219,45 @@ function renderSectorList() {
   });
 }
 
-function syncRigSelect() {
-  const previousValue = rigSelect.value;
-  rigSelect.innerHTML = "";
+function syncHiddenRigFields() {
+  const activeTab = getActiveTab();
+  const previousValue = String(activeTab.rig.targetIndex);
+  hiddenRigTarget.innerHTML = "";
 
-  state.sectors.forEach((sector, index) => {
+  activeTab.sectors.forEach((sector, index) => {
     const option = document.createElement("option");
     option.value = String(index);
     option.textContent = sector.trim() || `Сектор ${index + 1}`;
-    rigSelect.appendChild(option);
+    hiddenRigTarget.appendChild(option);
   });
 
-  if (rigSelect.options.length === 0) {
-    return;
+  if (hiddenRigTarget.options.length > 0) {
+    const hasPrevious = [...hiddenRigTarget.options].some(
+      (option) => option.value === previousValue
+    );
+
+    hiddenRigTarget.value = hasPrevious ? previousValue : "0";
+    activeTab.rig.targetIndex = Number(hiddenRigTarget.value);
   }
 
-  const hasPrevious = [...rigSelect.options].some(
-    (option) => option.value === previousValue
-  );
-
-  rigSelect.value = hasPrevious ? previousValue : "0";
+  hiddenRigEnabled.checked = activeTab.rig.enabled;
+  hiddenRigSpins.value = String(activeTab.rig.extraSpins);
+  hiddenRigDuration.value = String(activeTab.rig.duration);
+  hiddenRigOffset.value = String(activeTab.rig.offsetPercent);
+  hiddenRigOffsetValue.textContent = `${activeTab.rig.offsetPercent}%`;
 }
 
 function drawWheel() {
+  const activeTab = getActiveTab();
   const { size, center, radius } = wheelConfig;
-  const sectorCount = state.sectors.length;
+  const sectorCount = activeTab.sectors.length;
   const sliceAngle = (Math.PI * 2) / sectorCount;
 
   context.clearRect(0, 0, size, size);
 
   context.save();
   context.translate(center, center);
-  context.rotate(state.rotation);
+  context.rotate(activeTab.rotation);
 
   for (let index = 0; index < sectorCount; index += 1) {
     const startAngle = -Math.PI / 2 + index * sliceAngle;
@@ -182,7 +282,7 @@ function drawWheel() {
     context.shadowColor = "rgba(0, 0, 0, 0.18)";
     context.shadowBlur = 8;
 
-    const label = state.sectors[index].trim() || `Сектор ${index + 1}`;
+    const label = activeTab.sectors[index].trim() || `Сектор ${index + 1}`;
     const shortened = label.length > 16 ? `${label.slice(0, 14)}...` : label;
     context.fillText(shortened, radius - 28, 10);
     context.restore();
@@ -200,10 +300,10 @@ function drawWheel() {
 }
 
 function getResultIndex() {
-  const sliceAngle = (Math.PI * 2) / state.sectors.length;
-  // Определяем, какой сектор сейчас находится под верхним указателем.
-  const angleFromTop = normalizeAngle(-state.rotation);
-  return Math.floor(angleFromTop / sliceAngle) % state.sectors.length;
+  const activeTab = getActiveTab();
+  const sliceAngle = (Math.PI * 2) / activeTab.sectors.length;
+  const angleFromTop = normalizeAngle(-activeTab.rotation);
+  return Math.floor(angleFromTop / sliceAngle) % activeTab.sectors.length;
 }
 
 function setResultText(text) {
@@ -211,19 +311,23 @@ function setResultText(text) {
 }
 
 function finishSpin() {
+  const activeTab = getActiveTab();
   const resultIndex = getResultIndex();
-  const resultLabel = state.sectors[resultIndex].trim() || `Сектор ${resultIndex + 1}`;
+  const resultLabel = activeTab.sectors[resultIndex].trim() || `Сектор ${resultIndex + 1}`;
+
   state.spinning = false;
   updateControlState();
-  setResultText(`Выпал сектор: ${resultLabel}`);
+  setResultText(`Во вкладке «${activeTab.name}» выпал сектор: ${resultLabel}`);
 }
 
 function animateSpin(targetRotation, duration) {
+  const activeTab = getActiveTab();
+
   cancelAnimationFrame(state.animationFrameId);
   state.spinning = true;
   updateControlState();
 
-  const startRotation = state.rotation;
+  const startRotation = activeTab.rotation;
   const rotationDelta = targetRotation - startRotation;
   const startTime = performance.now();
 
@@ -232,7 +336,7 @@ function animateSpin(targetRotation, duration) {
     const progress = Math.min(elapsed / duration, 1);
     const eased = easeOutCubic(progress);
 
-    state.rotation = startRotation + rotationDelta * eased;
+    activeTab.rotation = startRotation + rotationDelta * eased;
     drawWheel();
 
     if (progress < 1) {
@@ -240,7 +344,7 @@ function animateSpin(targetRotation, duration) {
       return;
     }
 
-    state.rotation = normalizeAngle(targetRotation);
+    activeTab.rotation = normalizeAngle(targetRotation);
     drawWheel();
     finishSpin();
   }
@@ -249,34 +353,45 @@ function animateSpin(targetRotation, duration) {
 }
 
 function createRandomSpinTarget() {
+  const activeTab = getActiveTab();
   const fullSpins = 6 + Math.floor(Math.random() * 3);
   const extraAngle = Math.random() * Math.PI * 2;
-  return state.rotation + fullSpins * Math.PI * 2 + extraAngle;
+  return activeTab.rotation + fullSpins * Math.PI * 2 + extraAngle;
 }
 
-function createRiggedSpinTarget(targetIndex) {
-  const sectorCount = state.sectors.length;
+function createRiggedSpinTarget() {
+  const activeTab = getActiveTab();
+  const sectorCount = activeTab.sectors.length;
   const sliceAngle = (Math.PI * 2) / sectorCount;
-
-  const fullSpins = 7 + Math.floor(Math.random() * 2);
+  const targetIndex = activeTab.rig.targetIndex;
   const centerOfTarget = targetIndex * sliceAngle + sliceAngle / 2;
 
-  // Небольшой случайный сдвиг оставляет остановку визуально естественной,
-  // но гарантирует, что указатель останется внутри нужного сектора.
-  const safeOffset = (Math.random() - 0.5) * sliceAngle * 0.54;
+  // Смещение помогает останавливать колесо не строго по центру,
+  // а в произвольной точке внутри нужного сектора.
+  const offsetFraction = activeTab.rig.offsetPercent / 100;
+  const safeOffset = offsetFraction * sliceAngle * 0.48;
   const normalizedTarget = -(centerOfTarget + safeOffset);
 
-  const currentNormalized = normalizeAngle(state.rotation);
+  const currentNormalized = normalizeAngle(activeTab.rotation);
   const targetNormalized = normalizeAngle(normalizedTarget);
   const delta = normalizeAngle(targetNormalized - currentNormalized);
 
-  return state.rotation + fullSpins * Math.PI * 2 + delta;
+  return activeTab.rotation + activeTab.rig.extraSpins * Math.PI * 2 + delta;
+}
+
+function toggleSecretPanel() {
+  state.secretPanelVisible = !state.secretPanelVisible;
+  secretRigCard.hidden = !state.secretPanelVisible;
 }
 
 function renderAll() {
-  sanitizeSectors();
+  const activeTab = getActiveTab();
+
+  sanitizeSectors(activeTab);
+  clampRigValues(activeTab);
+  renderTabs();
   renderSectorList();
-  syncRigSelect();
+  syncHiddenRigFields();
   drawWheel();
   updateControlState();
 }
@@ -286,20 +401,17 @@ spinButton.addEventListener("click", () => {
     return;
   }
 
-  setResultText("Колесо крутится...");
-  animateSpin(createRandomSpinTarget(), 5200);
-});
+  const activeTab = getActiveTab();
+  const isRigged = activeTab.rig.enabled;
 
-rigButton.addEventListener("click", () => {
-  if (state.spinning) {
+  setResultText("Колесо крутится...");
+
+  if (isRigged) {
+    animateSpin(createRiggedSpinTarget(), activeTab.rig.duration);
     return;
   }
 
-  const targetIndex = Number(rigSelect.value);
-  const targetLabel = state.sectors[targetIndex]?.trim() || `Сектор ${targetIndex + 1}`;
-
-  setResultText(`Подкрутка активна: колесо остановится на «${targetLabel}».`);
-  animateSpin(createRiggedSpinTarget(targetIndex), 5600);
+  animateSpin(createRandomSpinTarget(), 5200);
 });
 
 addSectorButton.addEventListener("click", () => {
@@ -307,8 +419,92 @@ addSectorButton.addEventListener("click", () => {
     return;
   }
 
-  state.sectors.push(`Сектор ${state.sectors.length + 1}`);
+  const activeTab = getActiveTab();
+  activeTab.sectors.push(`Сектор ${activeTab.sectors.length + 1}`);
   renderAll();
+});
+
+addTabButton.addEventListener("click", () => {
+  if (state.spinning || state.tabs.length >= maxTabs) {
+    return;
+  }
+
+  const newTab = createTab(`Рулетка ${state.tabs.length + 1}`, [
+    "Вариант 1",
+    "Вариант 2",
+    "Вариант 3",
+    "Вариант 4",
+  ]);
+
+  state.tabs.push(newTab);
+  state.activeTabId = newTab.id;
+  renderAll();
+});
+
+removeTabButton.addEventListener("click", () => {
+  if (state.spinning || state.tabs.length === 1) {
+    return;
+  }
+
+  const currentIndex = state.tabs.findIndex((tab) => tab.id === state.activeTabId);
+  state.tabs.splice(currentIndex, 1);
+
+  const fallbackIndex = Math.max(0, currentIndex - 1);
+  state.activeTabId = state.tabs[fallbackIndex].id;
+  renderAll();
+});
+
+tabNameInput.addEventListener("input", (event) => {
+  const activeTab = getActiveTab();
+  activeTab.name = event.target.value.trimStart() || "Без названия";
+  renderTabs();
+});
+
+tabNameInput.addEventListener("blur", () => {
+  const activeTab = getActiveTab();
+  activeTab.name = activeTab.name.trim() || "Без названия";
+  renderTabs();
+});
+
+hiddenRigEnabled.addEventListener("change", () => {
+  getActiveTab().rig.enabled = hiddenRigEnabled.checked;
+});
+
+hiddenRigTarget.addEventListener("change", () => {
+  getActiveTab().rig.targetIndex = Number(hiddenRigTarget.value);
+});
+
+hiddenRigSpins.addEventListener("input", () => {
+  const activeTab = getActiveTab();
+  activeTab.rig.extraSpins = Number(hiddenRigSpins.value);
+  clampRigValues(activeTab);
+});
+
+hiddenRigDuration.addEventListener("input", () => {
+  const activeTab = getActiveTab();
+  activeTab.rig.duration = Number(hiddenRigDuration.value);
+  clampRigValues(activeTab);
+});
+
+hiddenRigOffset.addEventListener("input", () => {
+  const activeTab = getActiveTab();
+  activeTab.rig.offsetPercent = Number(hiddenRigOffset.value);
+  hiddenRigOffsetValue.textContent = `${activeTab.rig.offsetPercent}%`;
+});
+
+secretTrigger.addEventListener("click", () => {
+  state.secretClickCount += 1;
+  clearTimeout(state.secretTimerId);
+
+  if (state.secretClickCount >= 5) {
+    state.secretClickCount = 0;
+    toggleSecretPanel();
+    return;
+  }
+
+  state.secretTimerId = window.setTimeout(() => {
+    state.secretClickCount = 0;
+  }, 1200);
 });
 
 window.addEventListener("resize", drawWheel);
