@@ -20,10 +20,8 @@
       </div>
 
       <div class="result-card">
-        <p id="secretTrigger" class="result-label" title="Секретный переключатель">
-          Результат
-        </p>
-        <p id="resultText" class="result-text">Нажмите «Крутить», чтобы запустить рулетку.</p>
+        <p class="result-label">Результат</p>
+        <p id="resultText" class="result-text">Выберите вкладку и нажмите «Крутить».</p>
       </div>
     </section>
 
@@ -32,33 +30,18 @@
         <p class="eyebrow">Локальный режим</p>
         <h1>Колесо фортуны</h1>
         <p class="panel-description">
-          У каждой вкладки свой набор секторов. Можно держать до трёх отдельных рулеток и переключаться между ними.
+          Три отдельные рулетки с собственными секторами. Можно переключаться между вкладками и редактировать содержимое каждой.
         </p>
       </div>
 
       <section class="card">
-        <div class="card-title-row">
-          <h2>Вкладки рулетки</h2>
-          <button id="addTabButton" class="ghost-button" type="button">Новая вкладка</button>
-        </div>
+        <h2>Вкладки</h2>
         <div id="tabList" class="tab-list" aria-label="Список вкладок"></div>
-
-        <label class="field-label" for="tabNameInput">Название активной вкладки</label>
-        <div class="tab-name-row">
-          <input
-            id="tabNameInput"
-            class="text-field"
-            type="text"
-            maxlength="24"
-            placeholder="Название вкладки"
-          />
-          <button id="removeTabButton" class="ghost-button" type="button">Удалить</button>
-        </div>
       </section>
 
       <section class="card">
         <div class="card-title-row">
-          <h2>Сектора</h2>
+          <h2>Сектора активной вкладки</h2>
           <button id="addSectorButton" class="ghost-button" type="button">Добавить</button>
         </div>
         <div id="sectorList" class="sector-list" aria-live="polite"></div>
@@ -71,46 +54,9 @@
         </div>
 
         <div class="hint-box">
-          <p>Обычное вращение выглядит как случайное и работает сразу после двойного клика по `index.html`.</p>
-          <p>Скрытые настройки подкрутки спрятаны и не мешают обычному интерфейсу.</p>
+          <p>У каждой вкладки свой набор вариантов.</p>
+          <p>Редактирование справа сразу обновляет колесо.</p>
         </div>
-      </section>
-
-      <section id="secretRigCard" class="card secret-card" hidden>
-        <div class="card-title-row">
-          <h2>Скрытая подкрутка</h2>
-          <span class="secret-badge">Секретно</span>
-        </div>
-
-        <label class="toggle-row">
-          <input id="hiddenRigEnabled" type="checkbox" />
-          <span>Включить скрытую подкрутку для кнопки «Крутить»</span>
-        </label>
-
-        <label class="field-label" for="hiddenRigTarget">Нужный сектор</label>
-        <select id="hiddenRigTarget" class="select-field"></select>
-
-        <div class="secret-grid">
-          <label>
-            <span class="field-label field-label-compact">Обороты</span>
-            <input id="hiddenRigSpins" class="text-field" type="number" min="4" max="20" step="1" />
-          </label>
-
-          <label>
-            <span class="field-label field-label-compact">Длительность, мс</span>
-            <input id="hiddenRigDuration" class="text-field" type="number" min="2000" max="12000" step="100" />
-          </label>
-        </div>
-
-        <label class="field-label" for="hiddenRigOffset">
-          Смещение внутри сектора
-        </label>
-        <input id="hiddenRigOffset" class="range-field" type="range" min="-35" max="35" step="1" />
-        <p id="hiddenRigOffsetValue" class="subtle-text">0%</p>
-
-        <p class="subtle-text">
-          Секретная панель открывается и закрывается по клику на надпись «Результат» 5 раз подряд.
-        </p>
       </section>
     </aside>
   </main>
