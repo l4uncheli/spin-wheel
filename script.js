@@ -20,16 +20,76 @@ const wheelColors = [
   "#FF8C42",
 ];
 
+// Здесь можно хранить полные формы, сокращения и альтернативные написания.
+// Ключ должен совпадать с ключом в crossTabRigRules.
+const nameAliases = {
+  "елисей": [
+    "елисей",
+    "елисея",
+    "елисею",
+    "елисеем",
+    "елисее",
+    "бутенко",
+    "бутенко елисей",
+  ],
+  "арина": [
+    "арина",
+    "ариночка",
+    "непряхина",
+    "непряхина арина",
+  ],
+  "аня": [
+    "аня",
+    "анечка",
+    "анна",
+    "анюта",
+    "мороз",
+    "мороз анна",
+  ],
+  "геля": [
+    "геля",
+    "ангелина",
+    "гель",
+    "ядрина",
+    "ядрина ангелина",
+  ],
+  "петя": [
+    "петя",
+    "петр",
+    "пётр",
+    "петенька",
+    "косицкий",
+    "косицкий пётр",
+  ],
+  "настя": [
+    "настя",
+    "анастасия",
+    "настенька",
+    "шумилова",
+    "шумилова анастасия",
+  ],
+  "ваня": [
+    "ваня",
+    "иван",
+    "ванечка",
+    "байбородин",
+    "байбородин иван",
+  ],
+};
+
 // Здесь настраивается скрытая логика зависимых результатов между вкладками.
-// Ключ — результат из первой вкладки, значения — что должно выпасть во 2 и 3 вкладках.
+// Ключ — каноническое имя из первой вкладки.
+// Значение для вкладок 2 и 3 может быть:
+// - строкой, если нужен один фиксированный результат
+// - массивом строк, если нужен один результат из нескольких вариантов
 const crossTabRigRules = {
   "елисей": {
-    2: "d-moll",
-    3: "Тональность V ст.",
+    2: ["d-moll"],
+    3: ["Тональность V ст."],
   },
   "арина": {
-    2: "d-moll",
-    3: "Тональность V ст.",
+    2: ["Des-dur", "As-dur"],
+    3: ["Тональность III ст."],
   },
   "аня": {
     2: "d-moll",
@@ -105,6 +165,8 @@ const state = {
   activeTabId: 1,
   spinning: false,
   animationFrameId: 0,
+  pendingRigByTabId: {},
+  activeRuleSource: "",
 };
 
 const wheelConfig = {
@@ -136,7 +198,21 @@ function normalizeAngle(angle) {
 }
 
 function normalizeLabel(label) {
-  return label.trim().toLowerCase();
+  return label.trim().toLowerCase().replace(/ё/g, "е");
+}
+
+function resolveRuleKey(label) {
+  const normalizedLabel = normalizeLabel(label);
+
+  if (crossTabRigRules[normalizedLabel]) {
+    return normalizedLabel;
+  }
+
+  const matchedEntry = Object.entries(nameAliases).find(([, aliases]) =>
+    aliases.some((alias) => normalizeLabel(alias) === normalizedLabel)
+  );
+
+  return matchedEntry ? matchedEntry[0] : normalizedLabel;
 }
 
 function getSectorColor(index) {
@@ -311,27 +387,61 @@ function setResultText(text) {
   resultText.textContent = text;
 }
 
+function syncPendingRigFromFirstTab(resultLabel) {
+  const resolvedRuleKey = resolveRuleKey(resultLabel);
+  const rule = crossTabRigRules[resolvedRuleKey];
+
+  state.activeRuleSource = resolvedRuleKey;
+  state.pendingRigByTabId = {};
+
+  if (!rule) {
+    return;
+  }
+
+  Object.entries(rule).forEach(([tabId, targetLabelOrList]) => {
+    const variants = Array.isArray(targetLabelOrList)
+      ? targetLabelOrList
+      : [targetLabelOrList];
+    const selectedTarget = variants[Math.floor(Math.random() * variants.length)];
+
+    state.pendingRigByTabId[tabId] = {
+      targetLabel: selectedTarget,
+      used: false,
+    };
+  });
+}
+
 function findRiggedTargetIndex(tab) {
   if (tab.id === 1) {
     return -1;
   }
 
-  const baseTab = getTabById(1);
-  const baseResult = normalizeLabel(baseTab?.lastResult || "");
-  const rule = crossTabRigRules[baseResult];
-
-  if (!rule) {
-    return -1;
-  }
-
-  const targetLabel = rule[tab.id];
-  if (!targetLabel) {
+  const pendingRig = state.pendingRigByTabId[String(tab.id)];
+  if (!pendingRig || pendingRig.used) {
     return -1;
   }
 
   return tab.sectors.findIndex(
-    (sector) => normalizeLabel(sector) === normalizeLabel(targetLabel)
+    (sector) => normalizeLabel(sector) === normalizeLabel(pendingRig.targetLabel)
   );
+}
+
+function consumePendingRig(tabId) {
+  const pendingRig = state.pendingRigByTabId[String(tabId)];
+  if (!pendingRig) {
+    return;
+  }
+
+  pendingRig.used = true;
+
+  const hasUnusedRig = Object.values(state.pendingRigByTabId).some(
+    (rule) => rule && !rule.used
+  );
+
+  if (!hasUnusedRig) {
+    state.pendingRigByTabId = {};
+    state.activeRuleSource = "";
+  }
 }
 
 function finishSpin() {
@@ -340,6 +450,11 @@ function finishSpin() {
   const resultLabel = activeTab.sectors[resultIndex].trim() || `Сектор ${resultIndex + 1}`;
 
   activeTab.lastResult = resultLabel;
+
+  if (activeTab.id === 1) {
+    syncPendingRigFromFirstTab(resultLabel);
+  }
+
   state.spinning = false;
   updateControlState();
   setResultText(`Во вкладке «${activeTab.name}» выпал сектор: ${resultLabel}`);
@@ -402,12 +517,14 @@ function getSpinPlan(tab) {
     return {
       targetRotation: createRiggedSpinTarget(tab, riggedIndex),
       duration: 5600,
+      consumesRig: true,
     };
   }
 
   return {
     targetRotation: createRandomSpinTarget(tab),
     duration: 5200,
+    consumesRig: false,
   };
 }
 
@@ -430,6 +547,9 @@ spinButton.addEventListener("click", () => {
   const spinPlan = getSpinPlan(activeTab);
 
   setResultText("Колесо крутится...");
+  if (spinPlan.consumesRig) {
+    consumePendingRig(activeTab.id);
+  }
   animateSpin(spinPlan.targetRotation, spinPlan.duration);
 });
 
