@@ -219,13 +219,20 @@ body::before {
 
 .sector-item {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto auto 1fr auto;
   gap: 12px;
   align-items: center;
   padding: 10px 12px;
   border-radius: var(--radius-md);
   background: var(--bg-card);
   border: 1px solid rgba(95, 71, 42, 0.08);
+}
+
+.sector-checkbox {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 .sector-color {
@@ -349,7 +356,7 @@ input:disabled {
   }
 
   .sector-item {
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto auto 1fr;
   }
 
   .remove-button {

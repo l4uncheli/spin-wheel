@@ -181,9 +181,16 @@ function createTab(name, sectors) {
   return {
     id: createTab.nextId,
     name,
-    sectors: sectors.slice(),
+    sectors: sectors.map((label) => createSector(label)),
     rotation: 0,
     lastResult: "",
+  };
+}
+
+function createSector(label) {
+  return {
+    label,
+    excluded: false,
   };
 }
 
@@ -243,10 +250,31 @@ function getTabById(tabId) {
 
 function sanitizeSectors(tab = getActiveTab()) {
   const cleaned = tab.sectors
-    .map((sector) => sector.trim())
-    .filter((sector) => sector.length > 0);
+    .map((sector) => ({
+      ...sector,
+      label: sector.label.trim(),
+    }))
+    .filter((sector) => sector.label.length > 0);
 
-  tab.sectors = cleaned.length > 0 ? cleaned : ["Новый сектор"];
+  tab.sectors = cleaned.length > 0 ? cleaned : [createSector("Новый сектор")];
+}
+
+function getAvailableSectors(tab = getActiveTab()) {
+  const available = tab.sectors.filter((sector) => !sector.excluded);
+  return available.length > 0 ? available : tab.sectors;
+}
+
+function resetExcludedSectors(tabIds) {
+  tabIds.forEach((tabId) => {
+    const tab = getTabById(tabId);
+    if (!tab) {
+      return;
+    }
+
+    tab.sectors.forEach((sector) => {
+      sector.excluded = false;
+    });
+  });
 }
 
 function updateControlState() {
@@ -275,7 +303,7 @@ function renderTabs() {
     button.type = "button";
     button.innerHTML = `
       <span>${tab.name}</span>
-      <span class="tab-count">${tab.sectors.length} сект.</span>
+      <span class="tab-count">${getAvailableSectors(tab).length}/${tab.sectors.length}</span>
     `;
 
     button.addEventListener("click", () => {
@@ -299,6 +327,23 @@ function renderSectorList() {
     const item = document.createElement("div");
     item.className = "sector-item";
 
+    const checkbox = document.createElement("input");
+    checkbox.className = "sector-checkbox";
+    checkbox.type = "checkbox";
+    checkbox.checked = sector.excluded;
+    checkbox.title = "Выбывание сектора";
+    checkbox.addEventListener("change", () => {
+      const activeSectorsCount = activeTab.sectors.filter((entry) => !entry.excluded).length;
+
+      if (checkbox.checked && activeSectorsCount <= 1 && activeTab.sectors.length > 1) {
+        checkbox.checked = false;
+        return;
+      }
+
+      sector.excluded = checkbox.checked;
+      renderAll();
+    });
+
     const colorDot = document.createElement("div");
     colorDot.className = "sector-color";
     colorDot.style.background = getSectorColor(index);
@@ -306,10 +351,10 @@ function renderSectorList() {
     const input = document.createElement("input");
     input.className = "sector-input";
     input.type = "text";
-    input.value = sector;
+    input.value = sector.label;
     input.placeholder = `Сектор ${index + 1}`;
     input.addEventListener("input", (event) => {
-      activeTab.sectors[index] = event.target.value;
+      activeTab.sectors[index].label = event.target.value;
       drawWheel();
       renderTabs();
     });
@@ -325,7 +370,7 @@ function renderSectorList() {
     removeButton.title = `Удалить сектор ${index + 1}`;
     removeButton.addEventListener("click", () => {
       if (activeTab.sectors.length === 1) {
-        activeTab.sectors[0] = "Новый сектор";
+        activeTab.sectors[0] = createSector("Новый сектор");
       } else {
         activeTab.sectors.splice(index, 1);
       }
@@ -334,7 +379,7 @@ function renderSectorList() {
       renderAll();
     });
 
-    item.append(colorDot, input, removeButton);
+    item.append(checkbox, colorDot, input, removeButton);
     sectorList.appendChild(item);
   });
 }
@@ -342,7 +387,8 @@ function renderSectorList() {
 function drawWheel() {
   const activeTab = getActiveTab();
   const { size, center, radius } = wheelConfig;
-  const sectorCount = activeTab.sectors.length;
+  const sectorsToDraw = getAvailableSectors(activeTab);
+  const sectorCount = sectorsToDraw.length;
   const sliceAngle = (Math.PI * 2) / sectorCount;
 
   context.clearRect(0, 0, size, size);
@@ -374,7 +420,7 @@ function drawWheel() {
     context.shadowColor = "rgba(0, 0, 0, 0.18)";
     context.shadowBlur = 8;
 
-    const label = activeTab.sectors[index].trim() || `Сектор ${index + 1}`;
+    const label = sectorsToDraw[index].label.trim() || `Сектор ${index + 1}`;
     const shortened = label.length > 16 ? `${label.slice(0, 14)}...` : label;
     context.fillText(shortened, radius - 28, 10);
     context.restore();
@@ -392,9 +438,10 @@ function drawWheel() {
 }
 
 function getResultIndex(tab = getActiveTab()) {
-  const sliceAngle = (Math.PI * 2) / tab.sectors.length;
+  const sectorsToDraw = getAvailableSectors(tab);
+  const sliceAngle = (Math.PI * 2) / sectorsToDraw.length;
   const angleFromTop = normalizeAngle(-tab.rotation);
-  return Math.floor(angleFromTop / sliceAngle) % tab.sectors.length;
+  return Math.floor(angleFromTop / sliceAngle) % sectorsToDraw.length;
 }
 
 function setResultText(text) {
@@ -435,8 +482,10 @@ function findRiggedTargetIndex(tab) {
     return -1;
   }
 
-  return tab.sectors.findIndex(
-    (sector) => normalizeLabel(sector) === normalizeLabel(pendingRig.targetLabel)
+  const sectorsToDraw = getAvailableSectors(tab);
+
+  return sectorsToDraw.findIndex(
+    (sector) => normalizeLabel(sector.label) === normalizeLabel(pendingRig.targetLabel)
   );
 }
 
@@ -460,8 +509,9 @@ function consumePendingRig(tabId) {
 
 function finishSpin() {
   const activeTab = getActiveTab();
+  const sectorsToDraw = getAvailableSectors(activeTab);
   const resultIndex = getResultIndex(activeTab);
-  const resultLabel = activeTab.sectors[resultIndex].trim() || `Сектор ${resultIndex + 1}`;
+  const resultLabel = sectorsToDraw[resultIndex].label.trim() || `Сектор ${resultIndex + 1}`;
 
   activeTab.lastResult = resultLabel;
 
@@ -513,7 +563,8 @@ function createRandomSpinTarget(tab) {
 }
 
 function createRiggedSpinTarget(tab, targetIndex) {
-  const sliceAngle = (Math.PI * 2) / tab.sectors.length;
+  const sectorsToDraw = getAvailableSectors(tab);
+  const sliceAngle = (Math.PI * 2) / sectorsToDraw.length;
   const fullSpins = 8;
   const centerOfTarget = targetIndex * sliceAngle + sliceAngle / 2;
   const normalizedTarget = -centerOfTarget;
@@ -558,6 +609,9 @@ spinButton.addEventListener("click", () => {
   }
 
   const activeTab = getActiveTab();
+  if (activeTab.id === 1) {
+    resetExcludedSectors([2, 3]);
+  }
   const spinPlan = getSpinPlan(activeTab);
 
   setResultText("Колесо крутится...");
@@ -573,7 +627,7 @@ addSectorButton.addEventListener("click", () => {
   }
 
   const activeTab = getActiveTab();
-  activeTab.sectors.push(`Сектор ${activeTab.sectors.length + 1}`);
+  activeTab.sectors.push(createSector(`Сектор ${activeTab.sectors.length + 1}`));
   renderAll();
 });
 
