@@ -96,8 +96,8 @@ const crossTabRigRules = {
     3: "Тональность V ст.",
   },
   "геля": {
-    2: "d-moll",
-    3: "Тональность V ст.",
+    2: ["Es-dur", "G-dur"],
+    3: ["Тональность IV ст."],
   },
   "петя": {
     2: "d-moll",
@@ -108,8 +108,8 @@ const crossTabRigRules = {
     3: "Тональность V ст.",
   },
   "ваня": {
-    2: "d-moll",
-    3: "Тональность V ст.",
+    2: ["F-dur", "G-dur"],
+    3: "Тональность II ст.",
   },
 };
 
@@ -212,7 +212,21 @@ function resolveRuleKey(label) {
     aliases.some((alias) => normalizeLabel(alias) === normalizedLabel)
   );
 
-  return matchedEntry ? matchedEntry[0] : normalizedLabel;
+  if (matchedEntry) {
+    return matchedEntry[0];
+  }
+
+  const partialMatch = Object.entries(nameAliases).find(([, aliases]) =>
+    aliases.some((alias) => {
+      const normalizedAlias = normalizeLabel(alias);
+      return (
+        normalizedLabel.includes(normalizedAlias) ||
+        normalizedAlias.includes(normalizedLabel)
+      );
+    })
+  );
+
+  return partialMatch ? partialMatch[0] : normalizedLabel;
 }
 
 function getSectorColor(index) {
