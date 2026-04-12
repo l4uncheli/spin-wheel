@@ -6,6 +6,8 @@ const spinButton = document.getElementById("spinButton");
 const addSectorButton = document.getElementById("addSectorButton");
 const resultText = document.getElementById("resultText");
 const tabList = document.getElementById("tabList");
+const addTabButton = document.getElementById("addTabButton");
+const removeTabButton = document.getElementById("removeTabButton");
 
 const wheelColors = [
   "#E76F51",
@@ -19,6 +21,8 @@ const wheelColors = [
   "#06D6A0",
   "#FF8C42",
 ];
+
+const maxTabs = 3;
 
 // Здесь можно хранить полные формы, сокращения и альтернативные написания.
 // Ключ должен совпадать с ключом в crossTabRigRules.
@@ -113,15 +117,48 @@ const crossTabRigRules = {
   },
 };
 
+const tonalityAliases = {
+  "C-dur": ["до мажор"],
+  "G-dur": ["соль мажор"],
+  "D-dur": ["ре мажор"],
+  "A-dur": ["ля мажор"],
+  "E-dur": ["ми мажор"],
+  "H-dur": ["си мажор"],
+  "Fis-dur": ["фа диез мажор"],
+  "Cis-dur": ["до диез мажор"],
+  "F-dur": ["фа мажор"],
+  "B-dur": ["си бемоль мажор"],
+  "Es-dur": ["ми бемоль мажор"],
+  "As-dur": ["ля бемоль мажор"],
+  "Des-dur": ["ре бемоль мажор"],
+  "Ges-dur": ["соль бемоль мажор"],
+  "Ces-dur": ["до бемоль мажор"],
+  "a-moll": ["ля минор"],
+  "e-moll": ["ми минор"],
+  "h-moll": ["си минор"],
+  "fis-moll": ["фа диез минор"],
+  "cis-moll": ["до диез минор"],
+  "gis-moll": ["соль диез минор"],
+  "dis-moll": ["ре диез минор"],
+  "ais-moll": ["ля диез минор"],
+  "d-moll": ["ре минор"],
+  "g-moll": ["соль минор"],
+  "c-moll": ["до минор"],
+  "f-moll": ["фа минор"],
+  "b-moll": ["си бемоль минор"],
+  "es-moll": ["ми бемоль минор"],
+  "as-moll": ["ля бемоль минор"],
+};
+
 const state = {
   tabs: [
-    createTab("Имена", [
+    createTab(1, "Имена", [
       "Вариант 1",
       "Вариант 2",
       "Вариант 3",
       "Вариант 4",
     ]),
-    createTab("Тональность", [
+    createTab(2, "Тональность", [
       "C-dur",
       "G-dur",
       "D-dur",
@@ -153,7 +190,7 @@ const state = {
       "es-moll",
       "as-moll",
     ]),
-    createTab("Модуляция", [
+    createTab(3, "Модуляция", [
       "Тональность II ст.",
       "Тональность III ст.",
       "Тональность IV ст.",
@@ -175,11 +212,9 @@ const wheelConfig = {
   radius: canvas.width / 2 - 30,
 };
 
-function createTab(name, sectors) {
-  createTab.nextId = (createTab.nextId || 0) + 1;
-
+function createTab(id, name, sectors) {
   return {
-    id: createTab.nextId,
+    id,
     name,
     sectors: sectors.map((label) => createSector(label)),
     rotation: 0,
@@ -206,6 +241,38 @@ function normalizeAngle(angle) {
 
 function normalizeLabel(label) {
   return label.trim().toLowerCase().replace(/ё/g, "е");
+}
+
+function getEquivalentLabels(label) {
+  const normalizedLabel = normalizeLabel(label);
+  const matchedTonalityEntry = Object.entries(tonalityAliases).find(
+    ([canonicalLabel, aliases]) =>
+      normalizeLabel(canonicalLabel) === normalizedLabel ||
+      aliases.some((alias) => normalizeLabel(alias) === normalizedLabel)
+  );
+
+  if (!matchedTonalityEntry) {
+    return [normalizedLabel];
+  }
+
+  const [canonicalLabel, aliases] = matchedTonalityEntry;
+  return [canonicalLabel, ...aliases].map((entry) => normalizeLabel(entry));
+}
+
+function labelsMatch(leftLabel, rightLabel) {
+  const leftVariants = getEquivalentLabels(leftLabel);
+  const rightVariants = getEquivalentLabels(rightLabel);
+  return leftVariants.some((variant) => rightVariants.includes(variant));
+}
+
+function getFreeTabId() {
+  for (let tabId = 1; tabId <= maxTabs; tabId += 1) {
+    if (!getTabById(tabId)) {
+      return tabId;
+    }
+  }
+
+  return 0;
 }
 
 function resolveRuleKey(label) {
@@ -282,6 +349,8 @@ function updateControlState() {
 
   spinButton.disabled = disabled;
   addSectorButton.disabled = disabled;
+  addTabButton.disabled = disabled || state.tabs.length >= maxTabs;
+  removeTabButton.disabled = disabled || state.tabs.length <= 1;
 
   const inputs = sectorList.querySelectorAll("input, button");
   inputs.forEach((element) => {
@@ -297,7 +366,9 @@ function updateControlState() {
 function renderTabs() {
   tabList.innerHTML = "";
 
-  state.tabs.forEach((tab) => {
+  const orderedTabs = [...state.tabs].sort((leftTab, rightTab) => leftTab.id - rightTab.id);
+
+  orderedTabs.forEach((tab) => {
     const button = document.createElement("button");
     button.className = `tab-button${tab.id === state.activeTabId ? " active" : ""}`;
     button.type = "button";
@@ -485,7 +556,7 @@ function findRiggedTargetIndex(tab) {
   const sectorsToDraw = getAvailableSectors(tab);
 
   return sectorsToDraw.findIndex(
-    (sector) => normalizeLabel(sector.label) === normalizeLabel(pendingRig.targetLabel)
+    (sector) => labelsMatch(sector.label, pendingRig.targetLabel)
   );
 }
 
@@ -628,6 +699,44 @@ addSectorButton.addEventListener("click", () => {
 
   const activeTab = getActiveTab();
   activeTab.sectors.push(createSector(`Сектор ${activeTab.sectors.length + 1}`));
+  renderAll();
+});
+
+addTabButton.addEventListener("click", () => {
+  if (state.spinning || state.tabs.length >= maxTabs) {
+    return;
+  }
+
+  const freeTabId = getFreeTabId();
+  if (!freeTabId) {
+    return;
+  }
+
+  const newTab = createTab(freeTabId, `Вкладка ${freeTabId}`, [
+    "Вариант 1",
+    "Вариант 2",
+    "Вариант 3",
+    "Вариант 4",
+  ]);
+
+  state.tabs.push(newTab);
+  state.activeTabId = newTab.id;
+  renderAll();
+});
+
+removeTabButton.addEventListener("click", () => {
+  if (state.spinning || state.tabs.length <= 1) {
+    return;
+  }
+
+  const removeIndex = state.tabs.findIndex((tab) => tab.id === state.activeTabId);
+  const removedTab = state.tabs[removeIndex];
+
+  state.tabs.splice(removeIndex, 1);
+  delete state.pendingRigByTabId[String(removedTab.id)];
+
+  const orderedTabs = [...state.tabs].sort((leftTab, rightTab) => leftTab.id - rightTab.id);
+  state.activeTabId = orderedTabs[0].id;
   renderAll();
 });
 

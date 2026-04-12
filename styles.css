@@ -170,6 +170,11 @@ body::before {
   margin-bottom: 16px;
 }
 
+.tab-actions {
+  display: flex;
+  gap: 10px;
+}
+
 .tab-list,
 .sector-list {
   display: flex;
@@ -357,6 +362,14 @@ input:disabled {
 
   .sector-item {
     grid-template-columns: auto auto 1fr;
+  }
+
+  .tab-actions {
+    width: 100%;
+  }
+
+  .tab-actions .ghost-button {
+    flex: 1 1 0;
   }
 
   .remove-button {
