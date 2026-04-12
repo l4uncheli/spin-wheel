@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Колесо фортуны</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app">
+    <section class="wheel-panel">
+      <div class="wheel-frame">
+        <div class="pointer" aria-hidden="true"></div>
+        <canvas
+          id="wheelCanvas"
+          width="720"
+          height="720"
+          aria-label="Колесо фортуны"
+        ></canvas>
+      </div>
+
+      <div class="result-card">
+        <p class="result-label">Результат</p>
+        <p id="resultText" class="result-text">Нажмите «Крутить» или выберите цель для подкрутки.</p>
+      </div>
+    </section>
+
+    <aside class="control-panel">
+      <div class="panel-header">
+        <p class="eyebrow">Локальный режим</p>
+        <h1>Колесо фортуны</h1>
+        <p class="panel-description">
+          Меняйте сектора справа, крутите случайно или мягко останавливайте колесо на нужном секторе.
+        </p>
+      </div>
+
+      <section class="card">
+        <div class="card-title-row">
+          <h2>Сектора</h2>
+          <button id="addSectorButton" class="ghost-button" type="button">Добавить</button>
+        </div>
+        <div id="sectorList" class="sector-list" aria-live="polite"></div>
+      </section>
+
+      <section class="card">
+        <h2>Управление</h2>
+        <div class="action-group">
+          <button id="spinButton" class="primary-button" type="button">Крутить</button>
+          <button id="rigButton" class="secondary-button" type="button">Подкрутить</button>
+        </div>
+
+        <label class="field-label" for="rigSelect">Целевой сектор для подкрутки</label>
+        <select id="rigSelect" class="select-field"></select>
+
+        <div class="hint-box">
+          <p>Обычное вращение выбирает результат случайно.</p>
+          <p>Подкрутка заранее задаёт победивший сектор, но анимация остаётся плавной и естественной.</p>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
