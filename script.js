@@ -11,6 +11,11 @@ const removeTabButton = document.getElementById("removeTabButton");
 const resultToast = document.getElementById("resultToast");
 const resultVariant = document.getElementById("resultVariant");
 
+const SUPABASE_URL = "https://ixvcrzysvadeulopgbir.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_43qaCLdKWS7IxtQRnmoisA_-ztfs69b";
+const REMOTE_SYNC_INTERVAL_MS = 2000;
+const WHEEL_STATE_SYNC_DELAY_MS = 600;
+
 const wheelColors = [
   "#E76F51",
   "#F4A261",
@@ -24,88 +29,7 @@ const wheelColors = [
   "#FF8C42",
 ];
 
-const maxTabs = 3;
-
-// Здесь можно хранить полные формы, сокращения и альтернативные написания.
-// Ключ должен совпадать с ключом в crossTabRigRules.
-const nameAliases = {
-  "елисей": [
-    "елисей",
-    "елисея",
-    "елисею",
-    "елисеем",
-    "елисее",
-    "бутенко",
-    "бутенко елисей",
-  ],
-  "арина": [
-    "арина",
-    "ариночка",
-    "непряхина",
-    "непряхина арина",
-  ],
-  "аня": [
-    "аня",
-    "анечка",
-    "анна",
-    "анюта",
-    "мороз",
-    "мороз анна",
-  ],
-  "геля": [
-    "геля",
-    "ангелина",
-    "гель",
-    "ядрина",
-    "ядрина ангелина",
-  ],
-  "петя": [
-    "петя",
-    "петр",
-    "пётр",
-    "петенька",
-    "косицкий",
-    "косицкий пётр",
-  ],
-  "настя": [
-    "настя",
-    "анастасия",
-    "настенька",
-    "шумилова",
-    "шумилова анастасия",
-  ],
-  "ваня": [
-    "ваня",
-    "иван",
-    "ванечка",
-    "байбородин",
-    "байбородин иван",
-  ],
-};
-
-// Здесь настраивается скрытая логика зависимых результатов между вкладками.
-// Ключ — каноническое имя из первой вкладки.
-// Значение для вкладок 2 и 3 может быть:
-// - строкой, если нужен один фиксированный результат
-// - массивом строк, если нужен один результат из нескольких вариантов
-const crossTabRigRules = {
-  "елисей": {
-    2: ["d-moll"],
-    3: ["Тональность V ст."],
-  },
-  "арина": {
-    2: ["Des-dur", "As-dur"],
-    3: ["Тональность III ст."],
-  },
-  "геля": {
-    2: ["Es-dur", "G-dur"],
-    3: ["Тональность IV ст."],
-  },
-  "ваня": {
-    2: ["F-dur", "G-dur"],
-    3: "Тональность II ст.",
-  },
-};
+const maxTabs = 2;
 
 const tonalityAliases = {
   "C-dur": ["до мажор"],
@@ -141,22 +65,32 @@ const tonalityAliases = {
 };
 
 const modulationAliases = {
-  "Тональность II ст.": ["тональность ii ст.", "тональность 2 ст.", "ii", "2", "вторая"],
-  "Тональность III ст.": ["тональность iii ст.", "тональность 3 ст.", "iii", "3", "третья"],
-  "Тональность IV ст.": ["тональность iv ст.", "тональность 4 ст.", "iv", "4", "четвертая", "четвёртая"],
-  "Тональность V ст.": ["тональность v ст.", "тональность 5 ст.", "v", "5", "пятая"],
-  "Тональность VI ст.": ["тональность vi ст.", "тональность 6 ст.", "vi", "6", "шестая"],
-  "Тональность VII ст.": ["тональность vii ст.", "тональность 7 ст.", "vii", "7", "седьмая"],
+  "Тональность II": ["тональность ii", "тональность 2", "ii", "2", "вторая"],
+  "Тональность III": ["тональность iii", "тональность 3", "iii", "3", "третья"],
+  "Тональность IV": ["тональность iv", "тональность 4", "iv", "4", "четвертая", "четвёртая"],
+  "Тональность IV (гарм.)": [
+    "тональность iv гарм",
+    "тональность iv (гарм.)",
+    "тональность 4 гарм",
+    "тональность 4 (гарм.)",
+    "iv гарм",
+    "4 гарм",
+  ],
+  "Тональность V": ["тональность v", "тональность 5", "v", "5", "пятая"],
+  "Тональность V (гарм.)": [
+    "тональность v гарм",
+    "тональность v (гарм.)",
+    "тональность 5 гарм",
+    "тональность 5 (гарм.)",
+    "v гарм",
+    "5 гарм",
+  ],
+  "Тональность VI": ["тональность vi", "тональность 6", "vi", "6", "шестая"],
+  "Тональность VII": ["тональность vii", "тональность 7", "vii", "7", "седьмая"],
 };
 
 const state = {
   tabs: [
-    createTab(1, "Имена", [
-      "Вариант 1",
-      "Вариант 2",
-      "Вариант 3",
-      "Вариант 4",
-    ]),
     createTab(2, "Тональность", [
       "C-dur",
       "G-dur",
@@ -190,22 +124,186 @@ const state = {
       "as-moll",
     ]),
     createTab(3, "Модуляция", [
-      "Тональность II ст.",
-      "Тональность III ст.",
-      "Тональность IV ст.",
-      "Тональность V ст.",
-      "Тональность VI ст.",
-      "Тональность VII ст."
+      "Тональность II",
+      "Тональность III",
+      "Тональность IV",
+      "Тональность IV (гарм.)",
+      "Тональность V",
+      "Тональность V (гарм.)",
+      "Тональность VI",
+      "Тональность VII",
     ]),
   ],
-  activeTabId: 1,
+  activeTabId: 2,
   spinning: false,
   celebrating: false,
+  loadingRemoteCommand: false,
+  remoteCommandsByTab: {},
+  remoteSyncTimerId: 0,
+  remoteSyncInFlight: false,
+  remoteLastSyncAt: 0,
+  wheelStateSyncTimerId: 0,
+  wheelStateSyncInFlight: false,
   animationFrameId: 0,
   resultTimerId: 0,
-  pendingRigByTabId: {},
-  activeRuleSource: "",
 };
+
+async function fetchActiveSpinCommands() {
+  const endpoint =
+    `${SUPABASE_URL}/rest/v1/spin_commands` +
+    "?select=id,target_tab,target_value,note,created_at,is_active,used" +
+    "&is_active=eq.true" +
+    "&used=eq.false" +
+    "&order=created_at.desc";
+
+  const response = await fetch(endpoint, {
+    method: "GET",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Supabase request failed: ${response.status}`);
+  }
+
+  const rows = await response.json();
+  return rows;
+}
+
+function mapRemoteCommandsByTab(commands) {
+  return commands.reduce((accumulator, command) => {
+    const tabId = Number(command.target_tab);
+    if (!tabId || accumulator[tabId]) {
+      return accumulator;
+    }
+
+    accumulator[tabId] = command;
+    return accumulator;
+  }, {});
+}
+
+async function syncRemoteCommands() {
+  if (state.remoteSyncInFlight) {
+    return state.remoteCommandsByTab;
+  }
+
+  state.remoteSyncInFlight = true;
+
+  try {
+    const commands = await fetchActiveSpinCommands();
+    state.remoteCommandsByTab = mapRemoteCommandsByTab(commands);
+    state.remoteLastSyncAt = Date.now();
+    return state.remoteCommandsByTab;
+  } catch (error) {
+    console.error("Failed to sync spin commands from Supabase:", error);
+    return state.remoteCommandsByTab;
+  } finally {
+    state.remoteSyncInFlight = false;
+  }
+}
+
+function getCachedRemoteCommand(tabId) {
+  return state.remoteCommandsByTab[tabId] ?? null;
+}
+
+function shouldRefreshRemoteCommands() {
+  return Date.now() - state.remoteLastSyncAt >= REMOTE_SYNC_INTERVAL_MS;
+}
+
+function startRemoteCommandSync() {
+  if (state.remoteSyncTimerId) {
+    clearInterval(state.remoteSyncTimerId);
+  }
+
+  syncRemoteCommands();
+  state.remoteSyncTimerId = window.setInterval(syncRemoteCommands, REMOTE_SYNC_INTERVAL_MS);
+}
+
+function buildWheelStatePayload() {
+  return state.tabs
+    .slice()
+    .sort((leftTab, rightTab) => leftTab.id - rightTab.id)
+    .map((tab) => ({
+      tab_id: tab.id,
+      tab_name: tab.name,
+      variants: tab.sectors.map((variant) => ({
+        label: variant.label,
+        excluded: variant.excluded,
+      })),
+      updated_at: new Date().toISOString(),
+    }));
+}
+
+async function syncWheelStateToSupabase() {
+  if (state.wheelStateSyncInFlight) {
+    return;
+  }
+
+  state.wheelStateSyncInFlight = true;
+
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/wheel_state?on_conflict=tab_id`, {
+      method: "POST",
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=minimal",
+      },
+      body: JSON.stringify(buildWheelStatePayload()),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Wheel state sync failed: ${response.status}`);
+    }
+  } catch (error) {
+    console.error("Failed to sync wheel state to Supabase:", error);
+  } finally {
+    state.wheelStateSyncInFlight = false;
+  }
+}
+
+function scheduleWheelStateSync() {
+  clearTimeout(state.wheelStateSyncTimerId);
+  state.wheelStateSyncTimerId = window.setTimeout(syncWheelStateToSupabase, WHEEL_STATE_SYNC_DELAY_MS);
+}
+
+function buildTriggeredNote(note) {
+  const cleanedNote = String(note ?? "")
+    .split("| fired:")
+    .shift()
+    .trim();
+  const suffix = `fired:${new Date().toISOString()}`;
+
+  return cleanedNote ? `${cleanedNote} | ${suffix}` : suffix;
+}
+
+async function markSpinCommandUsed(command) {
+  const endpoint = `${SUPABASE_URL}/rest/v1/spin_commands?id=eq.${command.id}`;
+
+  const response = await fetch(endpoint, {
+    method: "PATCH",
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+      },
+      body: JSON.stringify({
+        used: true,
+        is_active: false,
+        note: buildTriggeredNote(command.note),
+      }),
+    });
+
+  if (!response.ok) {
+    throw new Error(`Supabase update failed: ${response.status}`);
+  }
+
+  delete state.remoteCommandsByTab[Number(command.target_tab)];
+}
 
 const wheelConfig = {
   size: canvas.width,
@@ -217,20 +315,19 @@ function createTab(id, name, sectors) {
   return {
     id,
     name,
-    sectors: sectors.map((label) => createSector(label)),
+    sectors: sectors.map((label) => createVariant(label)),
     rotation: 0,
     lastResult: "",
   };
 }
 
-function createSector(label) {
+function createVariant(label) {
   return {
     label,
     excluded: false,
   };
 }
 
-// Плавное замедление, чтобы колесо останавливалось естественно.
 function easeOutCubic(value) {
   return 1 - Math.pow(1 - value, 3);
 }
@@ -244,62 +341,53 @@ function normalizeLabel(label) {
   return label.trim().toLowerCase().replace(/ё/g, "е");
 }
 
-function getEquivalentLabels(label) {
+function getEquivalentTonalityLabels(label) {
   const normalizedLabel = normalizeLabel(label);
-  const matchedTonalityEntry = Object.entries(tonalityAliases).find(
+  const matchedEntry = Object.entries(tonalityAliases).find(
     ([canonicalLabel, aliases]) =>
       normalizeLabel(canonicalLabel) === normalizedLabel ||
       aliases.some((alias) => normalizeLabel(alias) === normalizedLabel)
   );
 
-  if (!matchedTonalityEntry) {
+  if (!matchedEntry) {
     return [normalizedLabel];
   }
 
-  const [canonicalLabel, aliases] = matchedTonalityEntry;
+  const [canonicalLabel, aliases] = matchedEntry;
   return [canonicalLabel, ...aliases].map((entry) => normalizeLabel(entry));
 }
 
-function getEquivalentModulations(label) {
+function getEquivalentModulationLabels(label) {
   const normalizedLabel = normalizeLabel(label);
-  const matchedModulationEntry = Object.entries(modulationAliases).find(
+  const matchedEntry = Object.entries(modulationAliases).find(
     ([canonicalLabel, aliases]) =>
       normalizeLabel(canonicalLabel) === normalizedLabel ||
-      aliases.some((alias) => normalizeLabel(alias) === normalizedLabel) ||
-      aliases.some((alias) => normalizedLabel.includes(normalizeLabel(alias))) ||
-      aliases.some((alias) => normalizeLabel(alias).includes(normalizedLabel))
+      aliases.some((alias) => normalizeLabel(alias) === normalizedLabel)
   );
 
-  if (!matchedModulationEntry) {
+  if (!matchedEntry) {
     return [normalizedLabel];
   }
 
-  const [canonicalLabel, aliases] = matchedModulationEntry;
+  const [canonicalLabel, aliases] = matchedEntry;
   return [canonicalLabel, ...aliases].map((entry) => normalizeLabel(entry));
 }
 
 function labelsMatch(leftLabel, rightLabel, tabId = 0) {
   if (tabId === 3) {
-    const leftVariants = getEquivalentModulations(leftLabel);
-    const rightVariants = getEquivalentModulations(rightLabel);
+    const leftVariants = getEquivalentModulationLabels(leftLabel);
+    const rightVariants = getEquivalentModulationLabels(rightLabel);
 
-    return leftVariants.some((leftVariant) =>
-      rightVariants.some(
-        (rightVariant) =>
-          leftVariant === rightVariant ||
-          leftVariant.includes(rightVariant) ||
-          rightVariant.includes(leftVariant)
-      )
-    );
+    return leftVariants.some((leftVariant) => rightVariants.includes(leftVariant));
   }
 
-  const leftVariants = getEquivalentLabels(leftLabel);
-  const rightVariants = getEquivalentLabels(rightLabel);
+  const leftVariants = getEquivalentTonalityLabels(leftLabel);
+  const rightVariants = getEquivalentTonalityLabels(rightLabel);
   return leftVariants.some((variant) => rightVariants.includes(variant));
 }
 
 function getFreeTabId() {
-  for (let tabId = 1; tabId <= maxTabs; tabId += 1) {
+  for (let tabId = 2; tabId <= 3; tabId += 1) {
     if (!getTabById(tabId)) {
       return tabId;
     }
@@ -308,35 +396,7 @@ function getFreeTabId() {
   return 0;
 }
 
-function resolveRuleKey(label) {
-  const normalizedLabel = normalizeLabel(label);
-
-  if (crossTabRigRules[normalizedLabel]) {
-    return normalizedLabel;
-  }
-
-  const matchedEntry = Object.entries(nameAliases).find(([, aliases]) =>
-    aliases.some((alias) => normalizeLabel(alias) === normalizedLabel)
-  );
-
-  if (matchedEntry) {
-    return matchedEntry[0];
-  }
-
-  const partialMatch = Object.entries(nameAliases).find(([, aliases]) =>
-    aliases.some((alias) => {
-      const normalizedAlias = normalizeLabel(alias);
-      return (
-        normalizedLabel.includes(normalizedAlias) ||
-        normalizedAlias.includes(normalizedLabel)
-      );
-    })
-  );
-
-  return partialMatch ? partialMatch[0] : normalizedLabel;
-}
-
-function getSectorColor(index) {
+function getVariantColor(index) {
   return wheelColors[index % wheelColors.length];
 }
 
@@ -348,51 +408,38 @@ function getTabById(tabId) {
   return state.tabs.find((tab) => tab.id === tabId);
 }
 
-function sanitizeSectors(tab = getActiveTab()) {
+function sanitizeVariants(tab = getActiveTab()) {
   const cleaned = tab.sectors
-    .map((sector) => ({
-      ...sector,
-      label: sector.label.trim(),
+    .map((variant) => ({
+      ...variant,
+      label: variant.label.trim(),
     }))
-    .filter((sector) => sector.label.length > 0);
+    .filter((variant) => variant.label.length > 0);
 
-  tab.sectors = cleaned.length > 0 ? cleaned : [createSector("Новый вариант")];
+  tab.sectors = cleaned.length > 0 ? cleaned : [createVariant("Новый вариант")];
 }
 
-function getAvailableSectors(tab = getActiveTab()) {
-  const available = tab.sectors.filter((sector) => !sector.excluded);
+function getAvailableVariants(tab = getActiveTab()) {
+  const available = tab.sectors.filter((variant) => !variant.excluded);
   return available.length > 0 ? available : tab.sectors;
 }
 
-function getActiveSectorIndexes(tab = getActiveTab()) {
+function getActiveVariantIndexes(tab = getActiveTab()) {
   const indexes = tab.sectors
-    .map((sector, index) => ({ sector, index }))
-    .filter(({ sector }) => !sector.excluded)
+    .map((variant, index) => ({ variant, index }))
+    .filter(({ variant }) => !variant.excluded)
     .map(({ index }) => index);
 
   return indexes.length > 0 ? indexes : tab.sectors.map((_, index) => index);
 }
 
-function resetExcludedSectors(tabIds) {
-  tabIds.forEach((tabId) => {
-    const tab = getTabById(tabId);
-    if (!tab) {
-      return;
-    }
-
-    tab.sectors.forEach((sector) => {
-      sector.excluded = false;
-    });
-  });
-}
-
 function updateControlState() {
-  const disabled = state.spinning || state.celebrating;
+  const disabled = state.spinning || state.celebrating || state.loadingRemoteCommand;
 
   spinButton.disabled = disabled;
   addSectorButton.disabled = disabled;
-  addTabButton.disabled = disabled || state.tabs.length >= maxTabs;
-  removeTabButton.disabled = disabled || state.tabs.length <= 1;
+  addTabButton.disabled = true;
+  removeTabButton.disabled = true;
 
   const inputs = sectorList.querySelectorAll("input, button");
   inputs.forEach((element) => {
@@ -416,11 +463,11 @@ function renderTabs() {
     button.type = "button";
     button.innerHTML = `
       <span>${tab.name}</span>
-      <span class="tab-count">${getAvailableSectors(tab).length}/${tab.sectors.length}</span>
+      <span class="tab-count">${getAvailableVariants(tab).length}/${tab.sectors.length}</span>
     `;
 
     button.addEventListener("click", () => {
-      if (state.spinning) {
+      if (state.spinning || state.celebrating || state.loadingRemoteCommand) {
         return;
       }
 
@@ -432,47 +479,50 @@ function renderTabs() {
   });
 }
 
-function renderSectorList() {
+function renderVariantList() {
   const activeTab = getActiveTab();
   sectorList.innerHTML = "";
 
-  activeTab.sectors.forEach((sector, index) => {
+  activeTab.sectors.forEach((variant, index) => {
     const item = document.createElement("div");
-    item.className = `sector-item${sector.excluded ? " excluded" : ""}`;
+    item.className = `sector-item${variant.excluded ? " excluded" : ""}`;
 
     const checkbox = document.createElement("input");
     checkbox.className = "sector-checkbox";
     checkbox.type = "checkbox";
-    checkbox.checked = sector.excluded;
+    checkbox.checked = variant.excluded;
     checkbox.title = "Выбывание варианта";
     checkbox.addEventListener("change", () => {
-      const activeSectorsCount = activeTab.sectors.filter((entry) => !entry.excluded).length;
+      const activeVariantsCount = activeTab.sectors.filter((entry) => !entry.excluded).length;
 
-      if (checkbox.checked && activeSectorsCount <= 1) {
+      if (checkbox.checked && activeVariantsCount <= 1) {
         checkbox.checked = false;
         return;
       }
 
-      sector.excluded = checkbox.checked;
+      variant.excluded = checkbox.checked;
+      scheduleWheelStateSync();
       renderAll();
     });
 
     const colorDot = document.createElement("div");
     colorDot.className = "sector-color";
-    colorDot.style.background = getSectorColor(index);
+    colorDot.style.background = getVariantColor(index);
 
     const input = document.createElement("input");
     input.className = "sector-input";
     input.type = "text";
-    input.value = sector.label;
+    input.value = variant.label;
     input.placeholder = `Вариант ${index + 1}`;
     input.addEventListener("input", (event) => {
       activeTab.sectors[index].label = event.target.value;
       drawWheel();
       renderTabs();
+      scheduleWheelStateSync();
     });
     input.addEventListener("blur", () => {
-      sanitizeSectors(activeTab);
+      sanitizeVariants(activeTab);
+      scheduleWheelStateSync();
       renderAll();
     });
 
@@ -480,15 +530,16 @@ function renderSectorList() {
     removeButton.className = "remove-button";
     removeButton.type = "button";
     removeButton.textContent = "×";
-    removeButton.title = `Удалить вариант`;
+    removeButton.title = "Удалить вариант";
     removeButton.addEventListener("click", () => {
       if (activeTab.sectors.length === 1) {
-        activeTab.sectors[0] = createSector("Новый вариант");
+        activeTab.sectors[0] = createVariant("Новый вариант");
       } else {
         activeTab.sectors.splice(index, 1);
       }
 
-      sanitizeSectors(activeTab);
+      sanitizeVariants(activeTab);
+      scheduleWheelStateSync();
       renderAll();
     });
 
@@ -500,8 +551,8 @@ function renderSectorList() {
 function drawWheel() {
   const activeTab = getActiveTab();
   const { size, center, radius } = wheelConfig;
-  const sectorsToDraw = activeTab.sectors;
-  const variantCount = sectorsToDraw.length;
+  const variantsToDraw = activeTab.sectors;
+  const variantCount = variantsToDraw.length;
   const sliceAngle = (Math.PI * 2) / variantCount;
 
   context.clearRect(0, 0, size, size);
@@ -513,13 +564,13 @@ function drawWheel() {
   for (let index = 0; index < variantCount; index += 1) {
     const startAngle = -Math.PI / 2 + index * sliceAngle;
     const endAngle = startAngle + sliceAngle;
-    const variant = sectorsToDraw[index];
+    const variant = variantsToDraw[index];
 
     context.beginPath();
     context.moveTo(0, 0);
     context.arc(0, 0, radius, startAngle, endAngle);
     context.closePath();
-    context.fillStyle = getSectorColor(index);
+    context.fillStyle = getVariantColor(index);
     context.fill();
 
     if (variant.excluded) {
@@ -540,7 +591,7 @@ function drawWheel() {
     context.shadowBlur = 8;
 
     const label = variant.label.trim() || `Вариант ${index + 1}`;
-    const shortened = label.length > 16 ? `${label.slice(0, 14)}...` : label;
+    const shortened = label.length > 18 ? `${label.slice(0, 16)}...` : label;
     if (variant.excluded) {
       context.fillStyle = "rgba(255, 250, 244, 0.55)";
     }
@@ -565,74 +616,12 @@ function getResultIndex(tab = getActiveTab()) {
   return Math.floor(angleFromTop / sliceAngle) % tab.sectors.length;
 }
 
-function syncPendingRigFromFirstTab(resultLabel) {
-  const resolvedRuleKey = resolveRuleKey(resultLabel);
-  const rule = crossTabRigRules[resolvedRuleKey];
-
-  state.activeRuleSource = resolvedRuleKey;
-  state.pendingRigByTabId = {};
-
-  if (!rule) {
-    return;
-  }
-
-  Object.entries(rule).forEach(([tabId, targetLabelOrList]) => {
-    const variants = Array.isArray(targetLabelOrList)
-      ? targetLabelOrList
-      : [targetLabelOrList];
-    const selectedTarget = variants[Math.floor(Math.random() * variants.length)];
-
-    state.pendingRigByTabId[tabId] = {
-      targetLabel: selectedTarget,
-      used: false,
-    };
-  });
-}
-
-function findRiggedTargetIndex(tab) {
-  if (tab.id === 1) {
-    return -1;
-  }
-
-  const pendingRig = state.pendingRigByTabId[String(tab.id)];
-  if (!pendingRig || pendingRig.used) {
-    return -1;
-  }
-
-  return tab.sectors.findIndex(
-    (sector) => !sector.excluded && labelsMatch(sector.label, pendingRig.targetLabel, tab.id)
-  );
-}
-
-function consumePendingRig(tabId) {
-  const pendingRig = state.pendingRigByTabId[String(tabId)];
-  if (!pendingRig) {
-    return;
-  }
-
-  pendingRig.used = true;
-
-  const hasUnusedRig = Object.values(state.pendingRigByTabId).some(
-    (rule) => rule && !rule.used
-  );
-
-  if (!hasUnusedRig) {
-    state.pendingRigByTabId = {};
-    state.activeRuleSource = "";
-  }
-}
-
 function finishSpin() {
   const activeTab = getActiveTab();
   const resultIndex = getResultIndex(activeTab);
   const resultLabel = activeTab.sectors[resultIndex].label.trim() || `Вариант ${resultIndex + 1}`;
 
   activeTab.lastResult = resultLabel;
-
-  if (activeTab.id === 1) {
-    syncPendingRigFromFirstTab(resultLabel);
-  }
-
   state.spinning = false;
   updateControlState();
   showResultAnimation(resultLabel);
@@ -647,7 +636,6 @@ function showResultAnimation(resultLabel) {
   resultVariant.textContent = resultLabel;
   resultToast.classList.remove("active");
 
-  // Перезапускаем CSS-анимацию после каждого спина.
   void resultToast.offsetWidth;
   resultToast.classList.add("active");
 
@@ -692,7 +680,7 @@ function animateSpin(targetRotation, duration) {
 }
 
 function createRandomSpinTarget(tab) {
-  const activeIndexes = getActiveSectorIndexes(tab);
+  const activeIndexes = getActiveVariantIndexes(tab);
   const targetIndex = activeIndexes[Math.floor(Math.random() * activeIndexes.length)];
   const fullSpins = 6 + Math.floor(Math.random() * 3);
   return createRiggedSpinTarget(tab, targetIndex, fullSpins);
@@ -710,97 +698,98 @@ function createRiggedSpinTarget(tab, targetIndex, fullSpins = 8) {
 }
 
 function getSpinPlan(tab) {
-  const riggedIndex = findRiggedTargetIndex(tab);
-
-  if (riggedIndex >= 0) {
-    return {
-      targetRotation: createRiggedSpinTarget(tab, riggedIndex),
-      duration: 5600,
-      consumesRig: true,
-    };
-  }
-
   return {
     targetRotation: createRandomSpinTarget(tab),
     duration: 5200,
-    consumesRig: false,
   };
+}
+
+async function getRemoteSpinPlan(tab) {
+  try {
+    if (shouldRefreshRemoteCommands()) {
+      await syncRemoteCommands();
+    }
+
+    const command = getCachedRemoteCommand(tab.id);
+    if (!command) {
+      return null;
+    }
+
+    const targetIndex = tab.sectors.findIndex(
+      (variant) => !variant.excluded && labelsMatch(variant.label, command.target_value, tab.id)
+    );
+
+    if (targetIndex < 0) {
+      return null;
+    }
+
+      return {
+        targetRotation: createRiggedSpinTarget(tab, targetIndex),
+        duration: 5600,
+        remoteCommand: command,
+      };
+  } catch (error) {
+    console.error("Failed to load spin command from Supabase:", error);
+    return null;
+  }
 }
 
 function renderAll() {
   const activeTab = getActiveTab();
 
-  sanitizeSectors(activeTab);
+  sanitizeVariants(activeTab);
   renderTabs();
-  renderSectorList();
+  renderVariantList();
   drawWheel();
   updateControlState();
+  scheduleWheelStateSync();
 }
 
-spinButton.addEventListener("click", () => {
-  if (state.spinning) {
+spinButton.addEventListener("click", async () => {
+  if (state.spinning || state.celebrating || state.loadingRemoteCommand) {
     return;
   }
 
   const activeTab = getActiveTab();
-  if (activeTab.id === 1) {
-    resetExcludedSectors([2, 3]);
+
+  state.loadingRemoteCommand = true;
+  updateControlState();
+
+  const remoteSpinPlan = await getRemoteSpinPlan(activeTab);
+  const spinPlan = remoteSpinPlan ?? getSpinPlan(activeTab);
+
+  if (remoteSpinPlan?.remoteCommand) {
+    try {
+      await markSpinCommandUsed(remoteSpinPlan.remoteCommand);
+    } catch (error) {
+      console.error("Failed to mark spin command as used:", error);
+    }
   }
-  const spinPlan = getSpinPlan(activeTab);
-  if (spinPlan.consumesRig) {
-    consumePendingRig(activeTab.id);
-  }
+
+  state.loadingRemoteCommand = false;
+  updateControlState();
+
   animateSpin(spinPlan.targetRotation, spinPlan.duration);
 });
 
 addSectorButton.addEventListener("click", () => {
-  if (state.spinning) {
+  if (state.spinning || state.celebrating || state.loadingRemoteCommand) {
     return;
   }
 
   const activeTab = getActiveTab();
-  activeTab.sectors.push(createSector(`Вариант ${activeTab.sectors.length + 1}`));
-  renderAll();
-});
-
-addTabButton.addEventListener("click", () => {
-  if (state.spinning || state.tabs.length >= maxTabs) {
-    return;
-  }
-
-  const freeTabId = getFreeTabId();
-  if (!freeTabId) {
-    return;
-  }
-
-  const newTab = createTab(freeTabId, `Вкладка ${freeTabId}`, [
-    "Вариант 1",
-    "Вариант 2",
-    "Вариант 3",
-    "Вариант 4",
-  ]);
-
-  state.tabs.push(newTab);
-  state.activeTabId = newTab.id;
-  renderAll();
-});
-
-removeTabButton.addEventListener("click", () => {
-  if (state.spinning || state.tabs.length <= 1) {
-    return;
-  }
-
-  const removeIndex = state.tabs.findIndex((tab) => tab.id === state.activeTabId);
-  const removedTab = state.tabs[removeIndex];
-
-  state.tabs.splice(removeIndex, 1);
-  delete state.pendingRigByTabId[String(removedTab.id)];
-
-  const orderedTabs = [...state.tabs].sort((leftTab, rightTab) => leftTab.id - rightTab.id);
-  state.activeTabId = orderedTabs[0].id;
+  activeTab.sectors.push(createVariant(`Вариант ${activeTab.sectors.length + 1}`));
   renderAll();
 });
 
 window.addEventListener("resize", drawWheel);
+window.addEventListener("focus", syncRemoteCommands);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    syncRemoteCommands();
+  }
+});
 
 renderAll();
+startRemoteCommandSync();
+scheduleWheelStateSync();
