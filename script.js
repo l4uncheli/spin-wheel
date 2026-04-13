@@ -104,6 +104,7 @@ const crossTabRigRules = {
   "аня": {
     2: ["D-dur", "As-dur", "E-dur"],
     3: ["Тональность IV ст."],
+  },
 };
 
 const tonalityAliases = {
