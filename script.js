@@ -278,19 +278,22 @@ function getEquivalentModulations(label) {
   return [canonicalLabel, ...aliases].map((entry) => normalizeLabel(entry));
 }
 
+function getCanonicalModulation(label) {
+  const normalizedLabel = normalizeLabel(label);
+
+  for (const [canonicalLabel, aliases] of Object.entries(modulationAliases)) {
+    const allVariants = [canonicalLabel, ...aliases].map((entry) => normalizeLabel(entry));
+    if (allVariants.includes(normalizedLabel)) {
+      return normalizeLabel(canonicalLabel);
+    }
+  }
+
+  return normalizedLabel;
+}
+
 function labelsMatch(leftLabel, rightLabel, tabId = 0) {
   if (tabId === 3) {
-    const leftVariants = getEquivalentModulations(leftLabel);
-    const rightVariants = getEquivalentModulations(rightLabel);
-
-    return leftVariants.some((leftVariant) =>
-      rightVariants.some(
-        (rightVariant) =>
-          leftVariant === rightVariant ||
-          leftVariant.includes(rightVariant) ||
-          rightVariant.includes(leftVariant)
-      )
-    );
+    return getCanonicalModulation(leftLabel) === getCanonicalModulation(rightLabel);
   }
 
   const leftVariants = getEquivalentLabels(leftLabel);
