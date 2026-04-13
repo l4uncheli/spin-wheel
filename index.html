@@ -7,19 +7,43 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <main class="app">
+  <main id="appRoot" class="app app-ready">
     <section class="wheel-panel">
       <div id="wheelFrame" class="wheel-frame">
         <div class="pointer" aria-hidden="true"></div>
-        <canvas
-          id="wheelCanvas"
-          width="720"
-          height="720"
-          aria-label="Колесо фортуны"
-        ></canvas>
+        <canvas id="wheelCanvas" width="720" height="720" aria-label="Колесо фортуны"></canvas>
         <div id="resultOverlay" class="result-overlay" aria-live="polite" aria-atomic="true">
           <div id="resultToast" class="result-toast">
             <span id="resultVariant" class="result-variant"></span>
+          </div>
+        </div>
+        <div class="speed-inline">
+          <div class="speed-inline-meta">
+            <p class="speed-inline-label eyebrow">Скорость прокрутки</p>
+            <p id="speedValue" class="speed-inline-value">1x</p>
+          </div>
+          <div id="speedControl" class="speed-control" aria-label="Скорость прокрутки">
+            <span class="speed-icon speed-icon-slow" aria-hidden="true">0.5x</span>
+            <div
+              id="speedTrack"
+              class="speed-track"
+              role="slider"
+              aria-label="Скорость прокрутки"
+              aria-valuemin="0"
+              aria-valuemax="2"
+              aria-valuenow="1"
+              tabindex="0"
+            >
+              <div class="speed-track-bar"></div>
+              <div id="speedTrackFill" class="speed-track-fill"></div>
+              <div id="speedSteps" class="speed-steps" aria-hidden="true">
+                <span class="speed-step"></span>
+                <span class="speed-step"></span>
+                <span class="speed-step"></span>
+              </div>
+              <button id="speedThumb" class="speed-thumb" type="button" aria-label="Изменить скорость"></button>
+            </div>
+            <span class="speed-icon speed-icon-fast" aria-hidden="true">2x</span>
           </div>
         </div>
       </div>
@@ -33,10 +57,29 @@
       <div class="panel-header">
         <p class="eyebrow">Тестовый режим</p>
         <h1>Колесо фортуны</h1>
-        <p class="panel-description">
-          Две отдельные рулетки со своими вариантами. Можно переключаться между вкладками и редактировать содержимое каждой.
-        </p>
       </div>
+
+      <section class="card">
+        <div class="card-title-row">
+          <h2>Редактор</h2>
+          <button id="createWheelButton" class="ghost-button template-create-button" type="button">
+            <span class="template-create-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" focusable="false">
+                <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span>Создать новое колесо</span>
+          </button>
+        </div>
+
+        <div class="template-list">
+          <button id="templateHarmonyButton" class="template-card" type="button">
+            <span class="template-badge">Шаблон</span>
+            <strong>Гармония. Модуляции</strong>
+            <span>Текущая схема с тональностями и модуляциями.</span>
+          </button>
+        </div>
+      </section>
 
       <section class="card">
         <div class="card-title-row">
@@ -52,7 +95,10 @@
       <section class="card">
         <div class="card-title-row">
           <h2>Варианты активной вкладки</h2>
-          <button id="addSectorButton" class="ghost-button" type="button">Добавить</button>
+          <div class="tab-actions">
+            <button id="resetExcludedButton" class="ghost-button" type="button">Сбросить выбывание</button>
+            <button id="addSectorButton" class="ghost-button" type="button">Добавить</button>
+          </div>
         </div>
         <div id="sectorList" class="sector-list" aria-live="polite"></div>
       </section>

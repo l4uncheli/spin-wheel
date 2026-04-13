@@ -1,20 +1,31 @@
-const canvas = document.getElementById("wheelCanvas");
+﻿const canvas = document.getElementById("wheelCanvas");
 const context = canvas.getContext("2d");
 
+const appRoot = document.getElementById("appRoot");
 const wheelFrame = document.getElementById("wheelFrame");
 const sectorList = document.getElementById("sectorList");
 const spinButton = document.getElementById("spinButton");
 const addSectorButton = document.getElementById("addSectorButton");
+const resetExcludedButton = document.getElementById("resetExcludedButton");
 const tabList = document.getElementById("tabList");
 const addTabButton = document.getElementById("addTabButton");
 const removeTabButton = document.getElementById("removeTabButton");
 const resultToast = document.getElementById("resultToast");
 const resultVariant = document.getElementById("resultVariant");
+const templateHarmonyButton = document.getElementById("templateHarmonyButton");
+const createWheelButton = document.getElementById("createWheelButton");
+const speedControl = document.getElementById("speedControl");
+const speedTrack = document.getElementById("speedTrack");
+const speedTrackFill = document.getElementById("speedTrackFill");
+const speedThumb = document.getElementById("speedThumb");
+const speedValue = document.getElementById("speedValue");
+const speedSteps = Array.from(document.querySelectorAll(".speed-step"));
 
 const SUPABASE_URL = "https://ixvcrzysvadeulopgbir.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_43qaCLdKWS7IxtQRnmoisA_-ztfs69b";
 const REMOTE_SYNC_INTERVAL_MS = 2000;
 const WHEEL_STATE_SYNC_DELAY_MS = 600;
+const LOCAL_STORAGE_STATE_KEY = "roulette-wheel-state-v2";
 
 const wheelColors = [
   "#E76F51",
@@ -29,7 +40,11 @@ const wheelColors = [
   "#FF8C42",
 ];
 
-const maxTabs = 2;
+const speedPresets = [
+  { label: "0.5x", randomDuration: 6800, remoteDuration: 7200 },
+  { label: "1x", randomDuration: 5200, remoteDuration: 5600 },
+  { label: "2x", randomDuration: 3800, remoteDuration: 4100 },
+];
 
 const tonalityAliases = {
   "C-dur": ["до мажор"],
@@ -89,9 +104,11 @@ const modulationAliases = {
   "Тональность VII": ["тональность vii", "тональность 7", "vii", "7", "седьмая"],
 };
 
-const state = {
-  tabs: [
-    createTab(2, "Тональность", [
+const harmonyTabsTemplate = [
+  {
+    id: 2,
+    name: "Тональность",
+    sectors: [
       "C-dur",
       "G-dur",
       "D-dur",
@@ -122,8 +139,12 @@ const state = {
       "b-moll",
       "es-moll",
       "as-moll",
-    ]),
-    createTab(3, "Модуляция", [
+    ],
+  },
+  {
+    id: 3,
+    name: "Модуляция",
+    sectors: [
       "Тональность II",
       "Тональность III",
       "Тональность IV",
@@ -132,21 +153,140 @@ const state = {
       "Тональность V (гарм.)",
       "Тональность VI",
       "Тональность VII",
-    ]),
-  ],
-  activeTabId: 2,
+    ],
+  },
+];
+
+const wheelConfig = {
+  size: canvas.width,
+  center: canvas.width / 2,
+  radius: canvas.width / 2 - 30,
+};
+
+function createVariant(label = "") {
+  return {
+    label,
+    excluded: false,
+  };
+}
+
+function createTab(id, name, sectors) {
+  return {
+    id,
+    name,
+    sectors: sectors.map((label) => createVariant(label)),
+    rotation: 0,
+    lastResult: "",
+  };
+}
+
+function createCustomTabs() {
+  return [createTab(1, "Вкладка 1", ["", "", "", ""])];
+}
+
+function createHarmonyTabs() {
+  return harmonyTabsTemplate.map((tab) => createTab(tab.id, tab.name, tab.sectors));
+}
+
+const state = {
+  mode: "custom",
+  tabs: createCustomTabs(),
+  activeTabId: 1,
+  speedIndex: 1,
   spinning: false,
   celebrating: false,
   loadingRemoteCommand: false,
+  sceneTransitioning: false,
   remoteCommandsByTab: {},
   remoteSyncTimerId: 0,
   remoteSyncInFlight: false,
   remoteLastSyncAt: 0,
   wheelStateSyncTimerId: 0,
   wheelStateSyncInFlight: false,
+  speedDragActive: false,
   animationFrameId: 0,
   resultTimerId: 0,
 };
+
+function getTabLimit() {
+  return state.mode === "custom" ? 3 : 2;
+}
+
+function getSceneName() {
+  return state.mode === "harmony" ? "Гармония. Модуляции" : "Новое колесо";
+}
+
+function serializeState() {
+  return {
+    mode: state.mode,
+    activeTabId: state.activeTabId,
+    speedIndex: state.speedIndex,
+    tabs: state.tabs.map((tab) => ({
+      id: tab.id,
+      name: tab.name,
+      sectors: tab.sectors.map((variant) => ({
+        label: variant.label,
+        excluded: variant.excluded,
+      })),
+    })),
+  };
+}
+
+function saveStateToLocalStorage() {
+  try {
+    window.localStorage.setItem(LOCAL_STORAGE_STATE_KEY, JSON.stringify(serializeState()));
+  } catch (error) {
+    console.error("Failed to save state to localStorage:", error);
+  }
+}
+
+function restoreStateFromLocalStorage() {
+  try {
+    const rawState = window.localStorage.getItem(LOCAL_STORAGE_STATE_KEY);
+    if (!rawState) {
+      return;
+    }
+
+    const parsedState = JSON.parse(rawState);
+    if (!parsedState || !Array.isArray(parsedState.tabs) || parsedState.tabs.length === 0) {
+      return;
+    }
+
+    const restoredTabs = parsedState.tabs
+      .map((tab) => {
+        if (!tab || typeof tab.id !== "number" || !Array.isArray(tab.sectors)) {
+          return null;
+        }
+
+        return {
+          id: tab.id,
+          name: String(tab.name || `Вкладка ${tab.id}`),
+          sectors: tab.sectors.map((variant) => ({
+            label: String(variant?.label || ""),
+            excluded: Boolean(variant?.excluded),
+          })),
+          rotation: 0,
+          lastResult: "",
+        };
+      })
+      .filter(Boolean);
+
+    if (restoredTabs.length === 0) {
+      return;
+    }
+
+    state.mode = parsedState.mode === "harmony" ? "harmony" : "custom";
+    state.tabs = restoredTabs;
+    state.activeTabId = restoredTabs.some((tab) => tab.id === parsedState.activeTabId)
+      ? parsedState.activeTabId
+      : restoredTabs[0].id;
+    state.speedIndex = Number.isInteger(parsedState.speedIndex)
+      ? Math.min(Math.max(parsedState.speedIndex, 0), speedPresets.length - 1)
+      : 1;
+  } catch (error) {
+    console.error("Failed to restore state from localStorage:", error);
+  }
+}
 
 async function fetchActiveSpinCommands() {
   const endpoint =
@@ -168,8 +308,7 @@ async function fetchActiveSpinCommands() {
     throw new Error(`Supabase request failed: ${response.status}`);
   }
 
-  const rows = await response.json();
-  return rows;
+  return response.json();
 }
 
 function mapRemoteCommandsByTab(commands) {
@@ -237,7 +376,7 @@ function buildWheelStatePayload() {
 }
 
 async function syncWheelStateToSupabase() {
-  if (state.wheelStateSyncInFlight) {
+  if (state.mode !== "harmony" || state.wheelStateSyncInFlight) {
     return;
   }
 
@@ -290,13 +429,13 @@ async function markSpinCommandUsed(command) {
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       "Content-Type": "application/json",
       Prefer: "return=minimal",
-      },
-      body: JSON.stringify({
-        used: true,
-        is_active: false,
-        note: buildTriggeredNote(command.note),
-      }),
-    });
+    },
+    body: JSON.stringify({
+      used: true,
+      is_active: false,
+      note: buildTriggeredNote(command.note),
+    }),
+  });
 
   if (!response.ok) {
     throw new Error(`Supabase update failed: ${response.status}`);
@@ -305,40 +444,8 @@ async function markSpinCommandUsed(command) {
   delete state.remoteCommandsByTab[Number(command.target_tab)];
 }
 
-const wheelConfig = {
-  size: canvas.width,
-  center: canvas.width / 2,
-  radius: canvas.width / 2 - 30,
-};
-
-function createTab(id, name, sectors) {
-  return {
-    id,
-    name,
-    sectors: sectors.map((label) => createVariant(label)),
-    rotation: 0,
-    lastResult: "",
-  };
-}
-
-function createVariant(label) {
-  return {
-    label,
-    excluded: false,
-  };
-}
-
-function easeOutCubic(value) {
-  return 1 - Math.pow(1 - value, 3);
-}
-
-function normalizeAngle(angle) {
-  const fullCircle = Math.PI * 2;
-  return ((angle % fullCircle) + fullCircle) % fullCircle;
-}
-
 function normalizeLabel(label) {
-  return label.trim().toLowerCase().replace(/ё/g, "е");
+  return String(label).trim().toLowerCase().replace(/ё/g, "е");
 }
 
 function getEquivalentTonalityLabels(label) {
@@ -377,7 +484,6 @@ function labelsMatch(leftLabel, rightLabel, tabId = 0) {
   if (tabId === 3) {
     const leftVariants = getEquivalentModulationLabels(leftLabel);
     const rightVariants = getEquivalentModulationLabels(rightLabel);
-
     return leftVariants.some((leftVariant) => rightVariants.includes(leftVariant));
   }
 
@@ -386,9 +492,17 @@ function labelsMatch(leftLabel, rightLabel, tabId = 0) {
   return leftVariants.some((variant) => rightVariants.includes(variant));
 }
 
+function getActiveTab() {
+  return state.tabs.find((tab) => tab.id === state.activeTabId) || state.tabs[0];
+}
+
+function getVariantColor(index) {
+  return wheelColors[index % wheelColors.length];
+}
+
 function getFreeTabId() {
-  for (let tabId = 2; tabId <= 3; tabId += 1) {
-    if (!getTabById(tabId)) {
+  for (let tabId = 1; tabId <= getTabLimit(); tabId += 1) {
+    if (!state.tabs.some((tab) => tab.id === tabId)) {
       return tabId;
     }
   }
@@ -396,32 +510,15 @@ function getFreeTabId() {
   return 0;
 }
 
-function getVariantColor(index) {
-  return wheelColors[index % wheelColors.length];
-}
-
-function getActiveTab() {
-  return state.tabs.find((tab) => tab.id === state.activeTabId) || state.tabs[0];
-}
-
-function getTabById(tabId) {
-  return state.tabs.find((tab) => tab.id === tabId);
-}
-
 function sanitizeVariants(tab = getActiveTab()) {
-  const cleaned = tab.sectors
-    .map((variant) => ({
-      ...variant,
-      label: variant.label.trim(),
-    }))
-    .filter((variant) => variant.label.length > 0);
+  tab.sectors = tab.sectors.map((variant) => ({
+    ...variant,
+    label: String(variant.label ?? "").trim(),
+  }));
 
-  tab.sectors = cleaned.length > 0 ? cleaned : [createVariant("Новый вариант")];
-}
-
-function getAvailableVariants(tab = getActiveTab()) {
-  const available = tab.sectors.filter((variant) => !variant.excluded);
-  return available.length > 0 ? available : tab.sectors;
+  if (tab.sectors.length === 0) {
+    tab.sectors = [createVariant("")];
+  }
 }
 
 function getActiveVariantIndexes(tab = getActiveTab()) {
@@ -433,13 +530,93 @@ function getActiveVariantIndexes(tab = getActiveTab()) {
   return indexes.length > 0 ? indexes : tab.sectors.map((_, index) => index);
 }
 
+function getCurrentSpeedPreset() {
+  return speedPresets[state.speedIndex] ?? speedPresets[1];
+}
+
+function updateSpeedUi() {
+  const preset = getCurrentSpeedPreset();
+  speedValue.textContent = preset.label;
+  speedTrack.setAttribute("aria-valuenow", String(state.speedIndex));
+  speedTrack.setAttribute("aria-valuetext", preset.label);
+  layoutSpeedControl(state.speedIndex / (speedPresets.length - 1), !state.speedDragActive);
+}
+
+function getSpeedTrackMetrics() {
+  const rect = speedTrack.getBoundingClientRect();
+  return { rect, minX: 0, maxX: rect.width };
+}
+
+function layoutSpeedControl(normalizedValue, animateThumb = true) {
+  const { minX, maxX } = getSpeedTrackMetrics();
+  const clampedValue = Math.min(Math.max(normalizedValue, 0), 1);
+  const thumbLeft = minX + (maxX - minX) * clampedValue;
+
+  speedThumb.style.transition = animateThumb ? "left 0.22s ease, transform 0.22s ease" : "none";
+  speedThumb.style.left = `${thumbLeft}px`;
+  speedTrackFill.style.width = `${thumbLeft}px`;
+
+  speedSteps.forEach((step, index) => {
+    const stepRatio = index / (speedPresets.length - 1);
+    const stepLeft = minX + (maxX - minX) * stepRatio;
+    step.style.left = `${stepLeft}px`;
+  });
+}
+
+function setSpeedIndex(nextIndex, animateThumb = true) {
+  state.speedIndex = Math.min(Math.max(nextIndex, 0), speedPresets.length - 1);
+  speedValue.textContent = getCurrentSpeedPreset().label;
+  speedTrack.setAttribute("aria-valuenow", String(state.speedIndex));
+  speedTrack.setAttribute("aria-valuetext", getCurrentSpeedPreset().label);
+  layoutSpeedControl(state.speedIndex / (speedPresets.length - 1), animateThumb);
+  saveStateToLocalStorage();
+}
+
+function getNormalizedPointerValue(clientX) {
+  const { rect, minX, maxX } = getSpeedTrackMetrics();
+  const localX = Math.min(Math.max(clientX - rect.left, minX), maxX);
+  return (localX - minX) / Math.max(maxX - minX, 1);
+}
+
+function snapSpeedFromClientX(clientX) {
+  const normalizedValue = getNormalizedPointerValue(clientX);
+  const snappedIndex = Math.round(normalizedValue * (speedPresets.length - 1));
+  setSpeedIndex(snappedIndex, true);
+}
+
+function handleSpeedPointerMove(event) {
+  if (!state.speedDragActive) {
+    return;
+  }
+
+  const normalizedValue = getNormalizedPointerValue(event.clientX);
+  layoutSpeedControl(normalizedValue, false);
+}
+
+function handleSpeedPointerUp(event) {
+  if (!state.speedDragActive) {
+    return;
+  }
+
+  state.speedDragActive = false;
+  speedThumb.releasePointerCapture?.(event.pointerId);
+  snapSpeedFromClientX(event.clientX);
+}
+
 function updateControlState() {
-  const disabled = state.spinning || state.celebrating || state.loadingRemoteCommand;
+  const disabled = state.spinning || state.celebrating || state.loadingRemoteCommand || state.sceneTransitioning;
+  const activeTab = getActiveTab();
+  const canEditTabs = state.mode === "custom";
+  const hasExcludedVariants = activeTab.sectors.some((variant) => variant.excluded);
 
   spinButton.disabled = disabled;
   addSectorButton.disabled = disabled;
-  addTabButton.disabled = true;
-  removeTabButton.disabled = true;
+  resetExcludedButton.disabled = disabled || !hasExcludedVariants;
+  addTabButton.disabled = disabled || !canEditTabs || state.tabs.length >= getTabLimit();
+  removeTabButton.disabled = disabled || !canEditTabs || state.tabs.length <= 1;
+    speedThumb.disabled = disabled;
+  templateHarmonyButton.disabled = disabled;
+  createWheelButton.disabled = disabled;
 
   const inputs = sectorList.querySelectorAll("input, button");
   inputs.forEach((element) => {
@@ -458,16 +635,17 @@ function renderTabs() {
   const orderedTabs = [...state.tabs].sort((leftTab, rightTab) => leftTab.id - rightTab.id);
 
   orderedTabs.forEach((tab) => {
+    const activeCount = tab.sectors.filter((variant) => !variant.excluded).length;
     const button = document.createElement("button");
     button.className = `tab-button${tab.id === state.activeTabId ? " active" : ""}`;
     button.type = "button";
     button.innerHTML = `
       <span>${tab.name}</span>
-      <span class="tab-count">${getAvailableVariants(tab).length}/${tab.sectors.length}</span>
+      <span class="tab-count">${activeCount}/${tab.sectors.length}</span>
     `;
 
     button.addEventListener("click", () => {
-      if (state.spinning || state.celebrating || state.loadingRemoteCommand) {
+      if (state.spinning || state.celebrating || state.loadingRemoteCommand || state.sceneTransitioning) {
         return;
       }
 
@@ -501,7 +679,6 @@ function renderVariantList() {
       }
 
       variant.excluded = checkbox.checked;
-      scheduleWheelStateSync();
       renderAll();
     });
 
@@ -518,11 +695,11 @@ function renderVariantList() {
       activeTab.sectors[index].label = event.target.value;
       drawWheel();
       renderTabs();
+      saveStateToLocalStorage();
       scheduleWheelStateSync();
     });
     input.addEventListener("blur", () => {
       sanitizeVariants(activeTab);
-      scheduleWheelStateSync();
       renderAll();
     });
 
@@ -533,13 +710,12 @@ function renderVariantList() {
     removeButton.title = "Удалить вариант";
     removeButton.addEventListener("click", () => {
       if (activeTab.sectors.length === 1) {
-        activeTab.sectors[0] = createVariant("Новый вариант");
+        activeTab.sectors[0] = createVariant("");
       } else {
         activeTab.sectors.splice(index, 1);
       }
 
       sanitizeVariants(activeTab);
-      scheduleWheelStateSync();
       renderAll();
     });
 
@@ -610,21 +786,19 @@ function drawWheel() {
   context.stroke();
 }
 
+function normalizeAngle(angle) {
+  const fullCircle = Math.PI * 2;
+  return ((angle % fullCircle) + fullCircle) % fullCircle;
+}
+
+function easeOutCubic(value) {
+  return 1 - Math.pow(1 - value, 3);
+}
+
 function getResultIndex(tab = getActiveTab()) {
   const sliceAngle = (Math.PI * 2) / tab.sectors.length;
   const angleFromTop = normalizeAngle(-tab.rotation);
   return Math.floor(angleFromTop / sliceAngle) % tab.sectors.length;
-}
-
-function finishSpin() {
-  const activeTab = getActiveTab();
-  const resultIndex = getResultIndex(activeTab);
-  const resultLabel = activeTab.sectors[resultIndex].label.trim() || `Вариант ${resultIndex + 1}`;
-
-  activeTab.lastResult = resultLabel;
-  state.spinning = false;
-  updateControlState();
-  showResultAnimation(resultLabel);
 }
 
 function showResultAnimation(resultLabel) {
@@ -645,6 +819,17 @@ function showResultAnimation(resultLabel) {
     resultToast.classList.remove("active");
     updateControlState();
   }, 3000);
+}
+
+function finishSpin() {
+  const activeTab = getActiveTab();
+  const resultIndex = getResultIndex(activeTab);
+  const resultLabel = activeTab.sectors[resultIndex].label.trim() || `Вариант ${resultIndex + 1}`;
+
+  activeTab.lastResult = resultLabel;
+  state.spinning = false;
+  updateControlState();
+  showResultAnimation(resultLabel);
 }
 
 function animateSpin(targetRotation, duration) {
@@ -679,13 +864,6 @@ function animateSpin(targetRotation, duration) {
   state.animationFrameId = requestAnimationFrame(frame);
 }
 
-function createRandomSpinTarget(tab) {
-  const activeIndexes = getActiveVariantIndexes(tab);
-  const targetIndex = activeIndexes[Math.floor(Math.random() * activeIndexes.length)];
-  const fullSpins = 6 + Math.floor(Math.random() * 3);
-  return createRiggedSpinTarget(tab, targetIndex, fullSpins);
-}
-
 function createRiggedSpinTarget(tab, targetIndex, fullSpins = 8) {
   const sliceAngle = (Math.PI * 2) / tab.sectors.length;
   const centerOfTarget = targetIndex * sliceAngle + sliceAngle / 2;
@@ -697,14 +875,26 @@ function createRiggedSpinTarget(tab, targetIndex, fullSpins = 8) {
   return tab.rotation + fullSpins * Math.PI * 2 + delta;
 }
 
+function createRandomSpinTarget(tab) {
+  const activeIndexes = getActiveVariantIndexes(tab);
+  const targetIndex = activeIndexes[Math.floor(Math.random() * activeIndexes.length)];
+  const fullSpins = 6 + Math.floor(Math.random() * 3);
+  return createRiggedSpinTarget(tab, targetIndex, fullSpins);
+}
+
 function getSpinPlan(tab) {
+  const preset = getCurrentSpeedPreset();
   return {
     targetRotation: createRandomSpinTarget(tab),
-    duration: 5200,
+    duration: preset.randomDuration,
   };
 }
 
 async function getRemoteSpinPlan(tab) {
+  if (state.mode !== "harmony") {
+    return null;
+  }
+
   try {
     if (shouldRefreshRemoteCommands()) {
       await syncRemoteCommands();
@@ -723,11 +913,11 @@ async function getRemoteSpinPlan(tab) {
       return null;
     }
 
-      return {
-        targetRotation: createRiggedSpinTarget(tab, targetIndex),
-        duration: 5600,
-        remoteCommand: command,
-      };
+    return {
+      targetRotation: createRiggedSpinTarget(tab, targetIndex),
+      duration: getCurrentSpeedPreset().remoteDuration,
+      remoteCommand: command,
+    };
   } catch (error) {
     console.error("Failed to load spin command from Supabase:", error);
     return null;
@@ -741,17 +931,51 @@ function renderAll() {
   renderTabs();
   renderVariantList();
   drawWheel();
+  updateSpeedUi();
   updateControlState();
+  saveStateToLocalStorage();
   scheduleWheelStateSync();
 }
 
+async function switchScene(nextMode) {
+  if (state.sceneTransitioning) {
+    return;
+  }
+
+  state.sceneTransitioning = true;
+  updateControlState();
+  appRoot.classList.remove("scene-in");
+  appRoot.classList.add("scene-out");
+
+  await new Promise((resolve) => window.setTimeout(resolve, 320));
+
+  if (nextMode === "harmony") {
+    state.mode = "harmony";
+    state.tabs = createHarmonyTabs();
+    state.activeTabId = 2;
+  } else {
+    state.mode = "custom";
+    state.tabs = createCustomTabs();
+    state.activeTabId = 1;
+  }
+
+  appRoot.classList.remove("scene-out");
+  appRoot.classList.add("scene-in");
+  renderAll();
+
+  window.setTimeout(() => {
+    appRoot.classList.remove("scene-in");
+    state.sceneTransitioning = false;
+    updateControlState();
+  }, 420);
+}
+
 spinButton.addEventListener("click", async () => {
-  if (state.spinning || state.celebrating || state.loadingRemoteCommand) {
+  if (state.spinning || state.celebrating || state.loadingRemoteCommand || state.sceneTransitioning) {
     return;
   }
 
   const activeTab = getActiveTab();
-
   state.loadingRemoteCommand = true;
   updateControlState();
 
@@ -768,21 +992,99 @@ spinButton.addEventListener("click", async () => {
 
   state.loadingRemoteCommand = false;
   updateControlState();
-
   animateSpin(spinPlan.targetRotation, spinPlan.duration);
 });
 
 addSectorButton.addEventListener("click", () => {
-  if (state.spinning || state.celebrating || state.loadingRemoteCommand) {
+  if (state.spinning || state.celebrating || state.loadingRemoteCommand || state.sceneTransitioning) {
     return;
   }
 
-  const activeTab = getActiveTab();
-  activeTab.sectors.push(createVariant(`Вариант ${activeTab.sectors.length + 1}`));
+  getActiveTab().sectors.push(createVariant(""));
   renderAll();
 });
 
-window.addEventListener("resize", drawWheel);
+resetExcludedButton.addEventListener("click", () => {
+  if (state.spinning || state.celebrating || state.loadingRemoteCommand || state.sceneTransitioning) {
+    return;
+  }
+
+  getActiveTab().sectors.forEach((variant) => {
+    variant.excluded = false;
+  });
+  renderAll();
+});
+
+addTabButton.addEventListener("click", () => {
+  if (state.mode !== "custom" || state.spinning || state.celebrating || state.loadingRemoteCommand || state.sceneTransitioning) {
+    return;
+  }
+
+  const nextId = getFreeTabId();
+  if (!nextId) {
+    return;
+  }
+
+  state.tabs.push(createTab(nextId, `Вкладка ${nextId}`, ["", "", "", ""]));
+  state.activeTabId = nextId;
+  renderAll();
+});
+
+removeTabButton.addEventListener("click", () => {
+  if (state.mode !== "custom" || state.tabs.length <= 1 || state.spinning || state.celebrating || state.loadingRemoteCommand || state.sceneTransitioning) {
+    return;
+  }
+
+  state.tabs = state.tabs.filter((tab) => tab.id !== state.activeTabId);
+  state.activeTabId = state.tabs[0].id;
+  renderAll();
+});
+
+templateHarmonyButton.addEventListener("click", () => {
+  switchScene("harmony");
+});
+
+createWheelButton.addEventListener("click", () => {
+  switchScene("custom");
+});
+
+speedTrack.addEventListener("click", (event) => {
+  if (state.spinning || state.celebrating || state.loadingRemoteCommand || state.sceneTransitioning || state.speedDragActive) {
+    return;
+  }
+
+  snapSpeedFromClientX(event.clientX);
+});
+
+speedTrack.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+    return;
+  }
+
+  event.preventDefault();
+  const delta = event.key === "ArrowRight" ? 1 : -1;
+  setSpeedIndex(state.speedIndex + delta, true);
+});
+
+speedThumb.addEventListener("pointerdown", (event) => {
+  if (state.spinning || state.celebrating || state.loadingRemoteCommand || state.sceneTransitioning) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  state.speedDragActive = true;
+  speedThumb.setPointerCapture?.(event.pointerId);
+});
+
+speedThumb.addEventListener("pointermove", handleSpeedPointerMove);
+speedThumb.addEventListener("pointerup", handleSpeedPointerUp);
+speedThumb.addEventListener("pointercancel", handleSpeedPointerUp);
+
+window.addEventListener("resize", () => {
+  drawWheel();
+  updateSpeedUi();
+});
 window.addEventListener("focus", syncRemoteCommands);
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) {
@@ -790,6 +1092,8 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
+restoreStateFromLocalStorage();
 renderAll();
 startRemoteCommandSync();
 scheduleWheelStateSync();
+
