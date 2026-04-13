@@ -1,13 +1,15 @@
 const canvas = document.getElementById("wheelCanvas");
 const context = canvas.getContext("2d");
 
+const wheelFrame = document.getElementById("wheelFrame");
 const sectorList = document.getElementById("sectorList");
 const spinButton = document.getElementById("spinButton");
 const addSectorButton = document.getElementById("addSectorButton");
-const resultText = document.getElementById("resultText");
 const tabList = document.getElementById("tabList");
 const addTabButton = document.getElementById("addTabButton");
 const removeTabButton = document.getElementById("removeTabButton");
+const resultToast = document.getElementById("resultToast");
+const resultVariant = document.getElementById("resultVariant");
 
 const wheelColors = [
   "#E76F51",
@@ -198,7 +200,9 @@ const state = {
   ],
   activeTabId: 1,
   spinning: false,
+  celebrating: false,
   animationFrameId: 0,
+  resultTimerId: 0,
   pendingRigByTabId: {},
   activeRuleSource: "",
 };
@@ -383,7 +387,7 @@ function resetExcludedSectors(tabIds) {
 }
 
 function updateControlState() {
-  const disabled = state.spinning;
+  const disabled = state.spinning || state.celebrating;
 
   spinButton.disabled = disabled;
   addSectorButton.disabled = disabled;
@@ -561,10 +565,6 @@ function getResultIndex(tab = getActiveTab()) {
   return Math.floor(angleFromTop / sliceAngle) % tab.sectors.length;
 }
 
-function setResultText(text) {
-  resultText.textContent = text;
-}
-
 function syncPendingRigFromFirstTab(resultLabel) {
   const resolvedRuleKey = resolveRuleKey(resultLabel);
   const rule = crossTabRigRules[resolvedRuleKey];
@@ -635,7 +635,28 @@ function finishSpin() {
 
   state.spinning = false;
   updateControlState();
-  setResultText(`Во вкладке «${activeTab.name}» выпал вариант: ${resultLabel}`);
+  showResultAnimation(resultLabel);
+}
+
+function showResultAnimation(resultLabel) {
+  clearTimeout(state.resultTimerId);
+
+  state.celebrating = true;
+  updateControlState();
+  wheelFrame.classList.add("highlighted");
+  resultVariant.textContent = resultLabel;
+  resultToast.classList.remove("active");
+
+  // Перезапускаем CSS-анимацию после каждого спина.
+  void resultToast.offsetWidth;
+  resultToast.classList.add("active");
+
+  state.resultTimerId = window.setTimeout(() => {
+    state.celebrating = false;
+    wheelFrame.classList.remove("highlighted");
+    resultToast.classList.remove("active");
+    updateControlState();
+  }, 3000);
 }
 
 function animateSpin(targetRotation, duration) {
@@ -726,8 +747,6 @@ spinButton.addEventListener("click", () => {
     resetExcludedSectors([2, 3]);
   }
   const spinPlan = getSpinPlan(activeTab);
-
-  setResultText("Колесо крутится...");
   if (spinPlan.consumesRig) {
     consumePendingRig(activeTab.id);
   }

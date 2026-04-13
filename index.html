@@ -9,7 +9,7 @@
 <body>
   <main class="app">
     <section class="wheel-panel">
-      <div class="wheel-frame">
+      <div id="wheelFrame" class="wheel-frame">
         <div class="pointer" aria-hidden="true"></div>
         <canvas
           id="wheelCanvas"
@@ -17,15 +17,15 @@
           height="720"
           aria-label="Колесо фортуны"
         ></canvas>
+        <div id="resultOverlay" class="result-overlay" aria-live="polite" aria-atomic="true">
+          <div id="resultToast" class="result-toast">
+            <span id="resultVariant" class="result-variant"></span>
+          </div>
+        </div>
       </div>
 
       <div class="wheel-actions">
         <button id="spinButton" class="primary-button wheel-spin-button" type="button">Крутить</button>
-      </div>
-
-      <div class="result-card">
-        <p class="result-label">Результат</p>
-        <p id="resultText" class="result-text">Выберите вкладку и нажмите «Крутить».</p>
       </div>
     </section>
 
