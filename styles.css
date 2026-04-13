@@ -233,6 +233,11 @@ body::before {
   border: 1px solid rgba(95, 71, 42, 0.08);
 }
 
+.sector-item.excluded {
+  background: rgba(92, 86, 80, 0.3);
+  border-color: rgba(52, 48, 43, 0.22);
+}
+
 .sector-checkbox {
   width: 18px;
   height: 18px;
@@ -255,6 +260,15 @@ body::before {
   font: inherit;
   padding: 8px 0;
   outline: none;
+}
+
+.sector-item.excluded .sector-color {
+  filter: grayscale(1) brightness(0.7);
+}
+
+.sector-item.excluded .sector-input {
+  color: rgba(47, 36, 24, 0.55);
+  text-decoration: line-through;
 }
 
 .sector-input:focus {

@@ -95,21 +95,9 @@ const crossTabRigRules = {
     2: ["Des-dur", "As-dur"],
     3: ["Тональность III ст."],
   },
-  "аня": {
-    2: "d-moll",
-    3: "Тональность V ст.",
-  },
   "геля": {
     2: ["Es-dur", "G-dur"],
     3: ["Тональность IV ст."],
-  },
-  "петя": {
-    2: "d-moll",
-    3: "Тональность V ст.",
-  },
-  "настя": {
-    2: "d-moll",
-    3: "Тональность V ст.",
   },
   "ваня": {
     2: ["F-dur", "G-dur"],
@@ -124,30 +112,39 @@ const tonalityAliases = {
   "A-dur": ["ля мажор"],
   "E-dur": ["ми мажор"],
   "H-dur": ["си мажор"],
-  "Fis-dur": ["фа диез мажор"],
-  "Cis-dur": ["до диез мажор"],
+  "Fis-dur": ["фа диез мажор", "фа-диез мажор"],
+  "Cis-dur": ["до диез мажор", "до-диез мажор"],
   "F-dur": ["фа мажор"],
-  "B-dur": ["си бемоль мажор"],
-  "Es-dur": ["ми бемоль мажор"],
-  "As-dur": ["ля бемоль мажор"],
-  "Des-dur": ["ре бемоль мажор"],
-  "Ges-dur": ["соль бемоль мажор"],
-  "Ces-dur": ["до бемоль мажор"],
+  "B-dur": ["си бемоль мажор", "си-бемоль мажор"],
+  "Es-dur": ["ми бемоль мажор", "ми-бемоль мажор"],
+  "As-dur": ["ля бемоль мажор", "ля-бемоль мажор"],
+  "Des-dur": ["ре бемоль мажор", "ре-бемоль мажор"],
+  "Ges-dur": ["соль бемоль мажор", "соль-бемоль мажор"],
+  "Ces-dur": ["до бемоль мажор", "до-бемоль мажор"],
   "a-moll": ["ля минор"],
   "e-moll": ["ми минор"],
   "h-moll": ["си минор"],
-  "fis-moll": ["фа диез минор"],
-  "cis-moll": ["до диез минор"],
-  "gis-moll": ["соль диез минор"],
-  "dis-moll": ["ре диез минор"],
-  "ais-moll": ["ля диез минор"],
+  "fis-moll": ["фа диез минор", "фа-диез минор"],
+  "cis-moll": ["до диез минор", "до-диез минор"],
+  "gis-moll": ["соль диез минор", "соль-диез минор"],
+  "dis-moll": ["ре диез минор", "ре-диез минор"],
+  "ais-moll": ["ля диез минор", "ля-диез минор"],
   "d-moll": ["ре минор"],
   "g-moll": ["соль минор"],
   "c-moll": ["до минор"],
   "f-moll": ["фа минор"],
-  "b-moll": ["си бемоль минор"],
-  "es-moll": ["ми бемоль минор"],
-  "as-moll": ["ля бемоль минор"],
+  "b-moll": ["си бемоль минор", "си-бемоль минор"],
+  "es-moll": ["ми бемоль минор", "ми-бемоль минор"],
+  "as-moll": ["ля бемоль минор", "ля-бемоль минор"],
+};
+
+const modulationAliases = {
+  "Тональность II ст.": ["тональность ii ст.", "тональность 2 ст.", "ii", "2", "вторая"],
+  "Тональность III ст.": ["тональность iii ст.", "тональность 3 ст.", "iii", "3", "третья"],
+  "Тональность IV ст.": ["тональность iv ст.", "тональность 4 ст.", "iv", "4", "четвертая", "четвёртая"],
+  "Тональность V ст.": ["тональность v ст.", "тональность 5 ст.", "v", "5", "пятая"],
+  "Тональность VI ст.": ["тональность vi ст.", "тональность 6 ст.", "vi", "6", "шестая"],
+  "Тональность VII ст.": ["тональность vii ст.", "тональность 7 ст.", "vii", "7", "седьмая"],
 };
 
 const state = {
@@ -259,7 +256,39 @@ function getEquivalentLabels(label) {
   return [canonicalLabel, ...aliases].map((entry) => normalizeLabel(entry));
 }
 
-function labelsMatch(leftLabel, rightLabel) {
+function getEquivalentModulations(label) {
+  const normalizedLabel = normalizeLabel(label);
+  const matchedModulationEntry = Object.entries(modulationAliases).find(
+    ([canonicalLabel, aliases]) =>
+      normalizeLabel(canonicalLabel) === normalizedLabel ||
+      aliases.some((alias) => normalizeLabel(alias) === normalizedLabel) ||
+      aliases.some((alias) => normalizedLabel.includes(normalizeLabel(alias))) ||
+      aliases.some((alias) => normalizeLabel(alias).includes(normalizedLabel))
+  );
+
+  if (!matchedModulationEntry) {
+    return [normalizedLabel];
+  }
+
+  const [canonicalLabel, aliases] = matchedModulationEntry;
+  return [canonicalLabel, ...aliases].map((entry) => normalizeLabel(entry));
+}
+
+function labelsMatch(leftLabel, rightLabel, tabId = 0) {
+  if (tabId === 3) {
+    const leftVariants = getEquivalentModulations(leftLabel);
+    const rightVariants = getEquivalentModulations(rightLabel);
+
+    return leftVariants.some((leftVariant) =>
+      rightVariants.some(
+        (rightVariant) =>
+          leftVariant === rightVariant ||
+          leftVariant.includes(rightVariant) ||
+          rightVariant.includes(leftVariant)
+      )
+    );
+  }
+
   const leftVariants = getEquivalentLabels(leftLabel);
   const rightVariants = getEquivalentLabels(rightLabel);
   return leftVariants.some((variant) => rightVariants.includes(variant));
@@ -323,12 +352,21 @@ function sanitizeSectors(tab = getActiveTab()) {
     }))
     .filter((sector) => sector.label.length > 0);
 
-  tab.sectors = cleaned.length > 0 ? cleaned : [createSector("Новый сектор")];
+  tab.sectors = cleaned.length > 0 ? cleaned : [createSector("Новый вариант")];
 }
 
 function getAvailableSectors(tab = getActiveTab()) {
   const available = tab.sectors.filter((sector) => !sector.excluded);
   return available.length > 0 ? available : tab.sectors;
+}
+
+function getActiveSectorIndexes(tab = getActiveTab()) {
+  const indexes = tab.sectors
+    .map((sector, index) => ({ sector, index }))
+    .filter(({ sector }) => !sector.excluded)
+    .map(({ index }) => index);
+
+  return indexes.length > 0 ? indexes : tab.sectors.map((_, index) => index);
 }
 
 function resetExcludedSectors(tabIds) {
@@ -396,17 +434,17 @@ function renderSectorList() {
 
   activeTab.sectors.forEach((sector, index) => {
     const item = document.createElement("div");
-    item.className = "sector-item";
+    item.className = `sector-item${sector.excluded ? " excluded" : ""}`;
 
     const checkbox = document.createElement("input");
     checkbox.className = "sector-checkbox";
     checkbox.type = "checkbox";
     checkbox.checked = sector.excluded;
-    checkbox.title = "Выбывание сектора";
+    checkbox.title = "Выбывание варианта";
     checkbox.addEventListener("change", () => {
       const activeSectorsCount = activeTab.sectors.filter((entry) => !entry.excluded).length;
 
-      if (checkbox.checked && activeSectorsCount <= 1 && activeTab.sectors.length > 1) {
+      if (checkbox.checked && activeSectorsCount <= 1) {
         checkbox.checked = false;
         return;
       }
@@ -423,7 +461,7 @@ function renderSectorList() {
     input.className = "sector-input";
     input.type = "text";
     input.value = sector.label;
-    input.placeholder = `Сектор ${index + 1}`;
+    input.placeholder = `Вариант ${index + 1}`;
     input.addEventListener("input", (event) => {
       activeTab.sectors[index].label = event.target.value;
       drawWheel();
@@ -438,10 +476,10 @@ function renderSectorList() {
     removeButton.className = "remove-button";
     removeButton.type = "button";
     removeButton.textContent = "×";
-    removeButton.title = `Удалить сектор ${index + 1}`;
+    removeButton.title = `Удалить вариант`;
     removeButton.addEventListener("click", () => {
       if (activeTab.sectors.length === 1) {
-        activeTab.sectors[0] = createSector("Новый сектор");
+        activeTab.sectors[0] = createSector("Новый вариант");
       } else {
         activeTab.sectors.splice(index, 1);
       }
@@ -458,9 +496,9 @@ function renderSectorList() {
 function drawWheel() {
   const activeTab = getActiveTab();
   const { size, center, radius } = wheelConfig;
-  const sectorsToDraw = getAvailableSectors(activeTab);
-  const sectorCount = sectorsToDraw.length;
-  const sliceAngle = (Math.PI * 2) / sectorCount;
+  const sectorsToDraw = activeTab.sectors;
+  const variantCount = sectorsToDraw.length;
+  const sliceAngle = (Math.PI * 2) / variantCount;
 
   context.clearRect(0, 0, size, size);
 
@@ -468,9 +506,10 @@ function drawWheel() {
   context.translate(center, center);
   context.rotate(activeTab.rotation);
 
-  for (let index = 0; index < sectorCount; index += 1) {
+  for (let index = 0; index < variantCount; index += 1) {
     const startAngle = -Math.PI / 2 + index * sliceAngle;
     const endAngle = startAngle + sliceAngle;
+    const variant = sectorsToDraw[index];
 
     context.beginPath();
     context.moveTo(0, 0);
@@ -478,6 +517,11 @@ function drawWheel() {
     context.closePath();
     context.fillStyle = getSectorColor(index);
     context.fill();
+
+    if (variant.excluded) {
+      context.fillStyle = "rgba(54, 50, 46, 0.6)";
+      context.fill();
+    }
 
     context.lineWidth = 3;
     context.strokeStyle = "rgba(255, 248, 238, 0.85)";
@@ -491,8 +535,11 @@ function drawWheel() {
     context.shadowColor = "rgba(0, 0, 0, 0.18)";
     context.shadowBlur = 8;
 
-    const label = sectorsToDraw[index].label.trim() || `Сектор ${index + 1}`;
+    const label = variant.label.trim() || `Вариант ${index + 1}`;
     const shortened = label.length > 16 ? `${label.slice(0, 14)}...` : label;
+    if (variant.excluded) {
+      context.fillStyle = "rgba(255, 250, 244, 0.55)";
+    }
     context.fillText(shortened, radius - 28, 10);
     context.restore();
   }
@@ -509,10 +556,9 @@ function drawWheel() {
 }
 
 function getResultIndex(tab = getActiveTab()) {
-  const sectorsToDraw = getAvailableSectors(tab);
-  const sliceAngle = (Math.PI * 2) / sectorsToDraw.length;
+  const sliceAngle = (Math.PI * 2) / tab.sectors.length;
   const angleFromTop = normalizeAngle(-tab.rotation);
-  return Math.floor(angleFromTop / sliceAngle) % sectorsToDraw.length;
+  return Math.floor(angleFromTop / sliceAngle) % tab.sectors.length;
 }
 
 function setResultText(text) {
@@ -553,10 +599,8 @@ function findRiggedTargetIndex(tab) {
     return -1;
   }
 
-  const sectorsToDraw = getAvailableSectors(tab);
-
-  return sectorsToDraw.findIndex(
-    (sector) => labelsMatch(sector.label, pendingRig.targetLabel)
+  return tab.sectors.findIndex(
+    (sector) => !sector.excluded && labelsMatch(sector.label, pendingRig.targetLabel, tab.id)
   );
 }
 
@@ -580,9 +624,8 @@ function consumePendingRig(tabId) {
 
 function finishSpin() {
   const activeTab = getActiveTab();
-  const sectorsToDraw = getAvailableSectors(activeTab);
   const resultIndex = getResultIndex(activeTab);
-  const resultLabel = sectorsToDraw[resultIndex].label.trim() || `Сектор ${resultIndex + 1}`;
+  const resultLabel = activeTab.sectors[resultIndex].label.trim() || `Вариант ${resultIndex + 1}`;
 
   activeTab.lastResult = resultLabel;
 
@@ -592,7 +635,7 @@ function finishSpin() {
 
   state.spinning = false;
   updateControlState();
-  setResultText(`Во вкладке «${activeTab.name}» выпал сектор: ${resultLabel}`);
+  setResultText(`Во вкладке «${activeTab.name}» выпал вариант: ${resultLabel}`);
 }
 
 function animateSpin(targetRotation, duration) {
@@ -628,15 +671,14 @@ function animateSpin(targetRotation, duration) {
 }
 
 function createRandomSpinTarget(tab) {
+  const activeIndexes = getActiveSectorIndexes(tab);
+  const targetIndex = activeIndexes[Math.floor(Math.random() * activeIndexes.length)];
   const fullSpins = 6 + Math.floor(Math.random() * 3);
-  const extraAngle = Math.random() * Math.PI * 2;
-  return tab.rotation + fullSpins * Math.PI * 2 + extraAngle;
+  return createRiggedSpinTarget(tab, targetIndex, fullSpins);
 }
 
-function createRiggedSpinTarget(tab, targetIndex) {
-  const sectorsToDraw = getAvailableSectors(tab);
-  const sliceAngle = (Math.PI * 2) / sectorsToDraw.length;
-  const fullSpins = 8;
+function createRiggedSpinTarget(tab, targetIndex, fullSpins = 8) {
+  const sliceAngle = (Math.PI * 2) / tab.sectors.length;
   const centerOfTarget = targetIndex * sliceAngle + sliceAngle / 2;
   const normalizedTarget = -centerOfTarget;
   const currentNormalized = normalizeAngle(tab.rotation);
@@ -698,7 +740,7 @@ addSectorButton.addEventListener("click", () => {
   }
 
   const activeTab = getActiveTab();
-  activeTab.sectors.push(createSector(`Сектор ${activeTab.sectors.length + 1}`));
+  activeTab.sectors.push(createSector(`Вариант ${activeTab.sectors.length + 1}`));
   renderAll();
 });
 
